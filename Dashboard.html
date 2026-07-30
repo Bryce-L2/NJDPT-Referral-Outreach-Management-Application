@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --navy: #163a5f;
+      --blue: #1f4e78;
+      --light: #f4f7fa;
+      --border: #d7dee7;
+      --text: #1f2933;
+      --white: #ffffff;
+      --danger: #a61b1b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--light);
+      color: var(--text);
+    }
+
+    header {
+      background: var(--navy);
+      color: var(--white);
+      padding: 22px 28px;
+    }
+
+    header h1 {
+      margin: 0 0 4px;
+      font-size: 24px;
+    }
+
+    header p {
+      margin: 0;
+      opacity: 0.9;
+    }
+
+    main {
+      padding: 22px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .metric {
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--blue);
+    }
+
+    .label {
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr) auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 9px 10px;
+      background: var(--white);
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 5px;
+      padding: 9px 13px;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .secondary {
+      background: #e9eef4;
+      color: var(--text);
+    }
+
+    .danger {
+      background: var(--danger);
+      color: var(--white);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1800px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    th {
+      background: #eaf0f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .actions {
+      white-space: nowrap;
+    }
+
+    .actions button {
+      padding: 6px 9px;
+      margin-right: 5px;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 10;
+      overflow: auto;
+      padding: 30px 15px;
+    }
+
+    .modal-content {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: var(--white);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .status {
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .summary-grid,
+      .toolbar,
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NJDPT Community & Referral Relationship Finder</h1>
+    <p>Public-source outreach opportunities and relationship tracking</p>
+  </header>
+
+  <main>
+    <section class="summary-grid">
+      <div class="card"><div id="total" class="metric">0</div><div class="label">Total Organizations</div></div>
+      <div class="card"><div id="due" class="metric">0</div><div class="label">Follow-Ups Due</div></div>
+      <div class="card"><div id="successful" class="metric">0</div><div class="label">Successful Connections</div></div>
+      <div class="card"><div id="active" class="metric">0</div><div class="label">Active Relationships</div></div>
+    </section>
+
+    <section class="toolbar">
+      <input id="search" type="search" placeholder="Search organizations, contacts, opportunities, outcomes, or notes">
+      <select id="locationFilter">
+        <option value="">All NJDPT Locations</option>
+        <option>Montville</option>
+        <option>Paramus</option>
+        <option>Riverdale</option>
+        <option>Wayne</option>
+      </select>
+      <select id="categoryFilter">
+        <option value="">All Categories</option>
+        <option>Physician Practice</option>
+        <option>Senior Center</option>
+        <option>Senior Living</option>
+        <option>School</option>
+        <option>Athletic Program</option>
+        <option>Gym/Fitness</option>
+        <option>Community Organization</option>
+        <option>Support Group</option>
+        <option>Health Event</option>
+        <option>Other</option>
+      </select>
+      <select id="statusFilter">
+        <option value="">All Statuses</option>
+        <option>New Opportunity</option>
+        <option>Contacted</option>
+        <option>Follow-Up Needed</option>
+        <option>Active Relationship</option>
+        <option>Not Pursuing</option>
+      </select>
+      <button class="primary" onclick="openForm()">Add Opportunity</button>
+    </section>
+
+    <div id="message" class="status"></div>
+
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Organization</th>
+            <th>Category</th>
+            <th>NJDPT Location</th>
+            <th>Distance</th>
+            <th>Contact Person</th>
+            <th>Contact Information</th>
+            <th>Contact Method</th>
+            <th>Website</th>
+            <th>Outreach Opportunity</th>
+            <th>Last Contact</th>
+            <th>Follow-Up Date</th>
+            <th>Status</th>
+            <th>Relationship Value</th>
+            <th>Connection Successful?</th>
+            <th>Outcome</th>
+            <th>Estimated ROI</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="recordModal" class="modal">
+    <div class="modal-content">
+      <h2 id="formTitle">Add Opportunity</h2>
+      <form id="recordForm" onsubmit="submitForm(event)">
+        <input type="hidden" id="ID" name="ID">
+
+        <div class="form-grid">
+          <label>Organization
+            <input id="Organization" name="Organization" required>
+          </label>
+
+          <label>Category
+            <select id="Category" name="Category">
+              <option>Physician Practice</option>
+              <option>Senior Center</option>
+              <option>Senior Living</option>
+              <option>School</option>
+              <option>Athletic Program</option>
+              <option>Gym/Fitness</option>
+              <option>Community Organization</option>
+              <option>Support Group</option>
+              <option>Health Event</option>
+              <option>Other</option>
+            </select>
+          </label>
+
+          <label>NJDPT Location
+            <select id="NJDPT Location" name="NJDPT Location">
+              <option>Montville</option>
+              <option>Paramus</option>
+              <option>Riverdale</option>
+              <option>Wayne</option>
+            </select>
+          </label>
+
+          <label>Distance
+            <input id="Distance" name="Distance" placeholder="e.g., 2.1 mi">
+          </label>
+
+          <label>Contact Person
+            <input id="Contact Person" name="Contact Person">
+          </label>
+
+          <label>Contact Information
+            <input id="Contact Information" name="Contact Information" placeholder="Public phone or email">
+          </label>
+
+          <label>Contact Method
+            <select id="Contact Method" name="Contact Method">
+              <option>Email</option>
+              <option>Phone</option>
+              <option>In Person</option>
+              <option>Website Form</option>
+              <option>Social Media</option>
+              <option>Mail</option>
+            </select>
+          </label>
+
+          <label>Website
+            <input id="Website" name="Website" type="url" placeholder="https://">
+          </label>
+
+          <label>Outreach Opportunity
+            <input id="Outreach Opportunity" name="Outreach Opportunity">
+          </label>
+
+          <label>Last Contact
+            <input id="Last Contact" name="Last Contact" type="date">
+          </label>
+
+          <label>Follow-Up Date
+            <input id="Follow-Up Date" name="Follow-Up Date" type="date">
+          </label>
+
+          <label>Status
+            <select id="Status" name="Status">
+              <option>New Opportunity</option>
+              <option>Contacted</option>
+              <option>Follow-Up Needed</option>
+              <option>Active Relationship</option>
+              <option>Not Pursuing</option>
+            </select>
+          </label>
+
+          <label>Relationship Value
+            <select id="Relationship Value" name="Relationship Value">
+              <option>Potential</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+
+          <label>Connection Successful?
+            <select id="Connection Successful" name="Connection Successful">
+              <option>Pending</option>
+              <option>Yes</option>
+              <option>No</option>
+            </select>
+          </label>
+
+          <label>Outcome
+            <input id="Outcome" name="Outcome" placeholder="e.g., Presentation scheduled">
+          </label>
+
+          <label>Estimated ROI
+            <input id="Estimated ROI" name="Estimated ROI" placeholder="Financial or strategic value">
+          </label>
+
+          <label class="full">Notes
+            <textarea id="Notes" name="Notes"></textarea>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="secondary" onclick="closeForm()">Cancel</button>
+          <button type="submit" class="primary">Save Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let records = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('search').addEventListener('input', renderTable);
+      document.getElementById('locationFilter').addEventListener('change', renderTable);
+      document.getElementById('categoryFilter').addEventListener('change', renderTable);
+      document.getElementById('statusFilter').addEventListener('change', renderTable);
+      loadData();
+    });
+
+    function loadData() {
+      setMessage('Loading records...');
+
+      google.script.run
+        .withSuccessHandler(data => {
+          records = Array.isArray(data) ? data : [];
+          renderTable();
+          refreshSummary();
+          setMessage('');
+        })
+        .withFailureHandler(showError)
+        .getReferralRecords();
+    }
+
+    function refreshSummary() {
+      google.script.run
+        .withSuccessHandler(summary => {
+          document.getElementById('total').textContent = summary.total || 0;
+          document.getElementById('due').textContent = summary.followUpsDue || 0;
+          document.getElementById('successful').textContent = summary.successfulConnections || 0;
+          document.getElementById('active').textContent = summary.activeRelationships || 0;
+        })
+        .withFailureHandler(showError)
+        .getDashboardSummary();
+    }
+
+    function renderTable() {
+      const search = document.getElementById('search').value.toLowerCase().trim();
+      const location = document.getElementById('locationFilter').value;
+      const category = document.getElementById('categoryFilter').value;
+      const status = document.getElementById('statusFilter').value;
+
+      const filtered = records.filter(record => {
+        const searchable = Object.values(record).join(' ').toLowerCase();
+
+        return (!search || searchable.includes(search))
+          && (!location || record['NJDPT Location'] === location)
+          && (!category || record['Category'] === category)
+          && (!status || record['Status'] === status);
+      });
+
+      const body = document.getElementById('recordsBody');
+      body.innerHTML = '';
+
+      filtered.forEach(record => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${escapeHtml(record['Organization'])}</td>
+          <td>${escapeHtml(record['Category'])}</td>
+          <td>${escapeHtml(record['NJDPT Location'])}</td>
+          <td>${escapeHtml(record['Distance'])}</td>
+          <td>${escapeHtml(record['Contact Person'])}</td>
+          <td>${escapeHtml(record['Contact Information'])}</td>
+          <td>${escapeHtml(record['Contact Method'])}</td>
+          <td>${websiteLink(record['Website'])}</td>
+          <td>${escapeHtml(record['Outreach Opportunity'])}</td>
+          <td>${escapeHtml(record['Last Contact'])}</td>
+          <td>${escapeHtml(record['Follow-Up Date'])}</td>
+          <td>${escapeHtml(record['Status'])}</td>
+          <td>${escapeHtml(record['Relationship Value'])}</td>
+          <td>${escapeHtml(record['Connection Successful'])}</td>
+          <td>${escapeHtml(record['Outcome'])}</td>
+          <td>${escapeHtml(record['Estimated ROI'])}</td>
+          <td>${escapeHtml(record['Notes'])}</td>
+          <td class="actions">
+            <button class="secondary" onclick='editRecord(${JSON.stringify(record)})'>Edit</button>
+            <button class="danger" onclick='removeRecord(${JSON.stringify(record["ID"])})'>Delete</button>
+          </td>
+        `;
+        body.appendChild(row);
+      });
+    }
+
+    function openForm(record = null) {
+      document.getElementById('recordForm').reset();
+      document.getElementById('ID').value = '';
+      document.getElementById('formTitle').textContent = record ? 'Edit Opportunity' : 'Add Opportunity';
+
+      if (record) {
+        Object.keys(record).forEach(key => {
+          const field = document.getElementById(key);
+          if (field) {
+            field.value = normalizeDateForInput(key, record[key]);
+          }
+        });
+      }
+
+      document.getElementById('recordModal').style.display = 'block';
+    }
+
+    function closeForm() {
+      document.getElementById('recordModal').style.display = 'none';
+    }
+
+    function editRecord(record) {
+      openForm(record);
+    }
+
+    function submitForm(event) {
+      event.preventDefault();
+
+      const formData = new FormData(document.getElementById('recordForm'));
+      const record = {};
+
+      formData.forEach((value, key) => {
+        record[key] = value;
+      });
+
+      setMessage('Saving record...');
+
+      google.script.run
+        .withSuccessHandler(() => {
+          closeForm();
+          loadData();
+          setMessage('Record saved.');
+        })
+        .withFailureHandler(showError)
+        .saveReferralRecord(record);
+    }
+
+    function removeRecord(id) {
+      if (!confirm('Delete this referral record?')) return;
+
+      setMessage('Deleting record...');
+
+      google.script.run
+        .withSuccessHandler(() => {
+          loadData();
+          setMessage('Record deleted.');
+        })
+        .withFailureHandler(showError)
+        .deleteReferralRecord(id);
+    }
+
+    function normalizeDateForInput(key, value) {
+      if (!value || !['Last Contact', 'Follow-Up Date'].includes(key)) return value || '';
+
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return '';
+
+      return date.toISOString().slice(0, 10);
+    }
+
+    function websiteLink(url) {
+      if (!url) return '';
+
+      const safeUrl = escapeHtml(url);
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">Open</a>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function setMessage(message) {
+      document.getElementById('message').textContent = message;
+    }
+
+    function showError(error) {
+      const message = error && error.message ? error.message : String(error);
+      setMessage(`Error: ${message}`);
+    }
+
+    window.onclick = event => {
+      if (event.target === document.getElementById('recordModal')) {
+        closeForm();
+      }
+    };
+  </script>
+</body>
+</html>
+
+
