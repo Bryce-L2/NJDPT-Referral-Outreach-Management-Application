@@ -223,7 +223,15 @@ function parseDate_(value) {
     return value;
   }
 
-  const parsed = new Date(value);
+  // Date-only strings like "2026-08-15" (from <input type="date">) must be parsed as
+  // LOCAL midnight, not UTC — otherwise a behind-UTC timezone shifts them a day earlier.
+  const text = String(value).trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+
+  const parsed = new Date(text);
   return isNaN(parsed.getTime()) ? '' : parsed;
 }
 
