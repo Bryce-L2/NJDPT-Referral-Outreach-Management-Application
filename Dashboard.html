@@ -1361,12 +1361,20 @@
       google.script.run
         .withSuccessHandler(summary => {
           animateCount(document.getElementById('total'), summary.total || 0);
-          animateCount(document.getElementById('due'), summary.followUpsDue || 0);
+          // "Follow-Ups Due" counts every follow-up needed this week (overdue + next 7 days),
+          // computed from the loaded records so it matches the breakdown modal.
+          animateCount(document.getElementById('due'), countFollowUpsThisWeek());
           animateCount(document.getElementById('successful'), summary.successfulConnections || 0);
           animateCount(document.getElementById('active'), summary.activeRelationships || 0);
         })
         .withFailureHandler(showError)
         .getDashboardSummary();
+    }
+
+    // Counts every follow-up needed this week: overdue plus anything due within
+    // the next 7 days. Drives the "Follow-Ups Due" summary card.
+    function countFollowUpsThisWeek() {
+      return records.filter(isDueThisWeek).length;
     }
 
     function renderTable() {
@@ -1633,8 +1641,6 @@
 
     /* ============================================================
        Flair layer: interactivity that runs alongside the app.
-       Additive only — no backend calls or protected functions
-       are modified. Toasts are driven by observing #message.
        ============================================================ */
 
     const TOAST_OK = '<svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -1677,13 +1683,11 @@
 
     // Second DOMContentLoaded listener — leaves the original one untouched.
     document.addEventListener('DOMContentLoaded', () => {
-      // Ripple on any button click
       document.addEventListener('click', event => {
         const button = event.target.closest('.btn-add, .btn-primary, .btn-secondary, .act-btn');
         if (button) spawnRipple(button, event);
       });
 
-      // 3D tilt on the summary cards
       document.querySelectorAll('.card').forEach(card => {
         card.addEventListener('pointermove', event => {
           const rect = card.getBoundingClientRect();
@@ -1695,7 +1699,6 @@
         card.addEventListener('pointerleave', () => { card.style.transform = ''; });
       });
 
-      // Sticky-header shadow once the table starts scrolling
       const wrap = document.querySelector('.table-wrap');
       if (wrap) {
         wrap.addEventListener('scroll', () => {
@@ -1703,17 +1706,15 @@
         });
       }
 
-      // Toasts: react to status-message changes without touching setMessage
       const messageEl = document.getElementById('message');
       if (messageEl && 'MutationObserver' in window) {
         new MutationObserver(() => {
           const text = messageEl.textContent.trim();
-          if (!text || text.endsWith('...')) return; // skip "Loading..."/"Saving..."
+          if (!text || text.endsWith('...')) return;
           showToast(text, /^error/i.test(text) ? 'error' : 'success');
         }).observe(messageEl, { childList: true, characterData: true, subtree: true });
       }
 
-      // Row click -> open the detail drawer (ignore action buttons & note toggles)
       document.getElementById('recordsBody').addEventListener('click', event => {
         if (event.target.closest('.actions')) return;
         if (event.target.closest('.note-wrap')) return;
@@ -1723,7 +1724,6 @@
         if (record) openDetail(record);
       });
 
-      // Breakdown list item click -> open that record's detail drawer
       document.getElementById('bdList').addEventListener('click', event => {
         const item = event.target.closest('[data-bd-index]');
         if (!item) return;
@@ -1797,21 +1797,21 @@
       setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
-    function isFollowUpDue(record) {
-      const raw = record['Follow-Up Date'];
-      if (!raw) return false;
-      const date = new Date(raw);
-      if (isNaN(date.getTime())) return false;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return date <= today;
+    // True when a record's follow-up is overdue or falls within the next 7 days.
+    function isDueThisWeek(record) {
+      const d = parseDateMidnight(record['Follow-Up Date']);
+      if (!d) return false;
+      const today = midnightToday();
+      const weekEnd = new Date(today);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      return d <= weekEnd;
     }
 
     const BREAKDOWN_CONFIG = {
-      total:      { title: 'Total Organizations',     eyebrow: 'All tracked organizations',            match: () => true },
-      due:        { title: 'Follow-Ups Due',          eyebrow: 'Follow-up date on or before today',     match: r => isFollowUpDue(r) },
-      successful: { title: 'Successful Connections',  eyebrow: 'Connection marked successful',          match: r => String(r['Connection Successful']).toLowerCase() === 'yes' },
-      active:     { title: 'Active Relationships',    eyebrow: 'Status is an active relationship',       match: r => String(r['Status']).toLowerCase() === 'active relationship' }
+      total:      { title: 'Total Organizations',     eyebrow: 'All tracked organizations',              match: () => true },
+      due:        { title: 'Follow-Ups Due',          eyebrow: 'Overdue or due within the next 7 days',   match: r => isDueThisWeek(r) },
+      successful: { title: 'Successful Connections',  eyebrow: 'Connection marked successful',            match: r => String(r['Connection Successful']).toLowerCase() === 'yes' },
+      active:     { title: 'Active Relationships',    eyebrow: 'Status is an active relationship',         match: r => String(r['Status']).toLowerCase() === 'active relationship' }
     };
 
     // Applies the per-modal sort order to the filtered subset.
@@ -1934,7 +1934,6 @@
     };
     if (window.Chart) { Chart.register(bdCenterTextPlugin); }
 
-    // Destroys any live breakdown chart instances.
     function destroyBreakdownCharts() {
       [chartTotalCat, chartTotalLoc, chartDueLoc, chartSuccCat, chartSuccConn, chartActiveVal, chartActiveOut]
         .forEach(c => { if (c) c.destroy(); });
@@ -2022,7 +2021,6 @@
     }
 
     // Builds the charts for whichever breakdown modal just opened.
-    // `filtered` is the subset shown in the list; `records` is the full dataset.
     function renderBreakdownCharts(type, filtered) {
       const host = document.getElementById('bdCharts');
       if (!host) return;
@@ -2054,13 +2052,26 @@
         const weekEnd = new Date(today);
         weekEnd.setDate(weekEnd.getDate() + 7);
 
+        // Totals for the pills + per-office urgency buckets for the stacked bars.
         let overdue = 0, dueToday = 0, dueWeek = 0;
+        const locOver = {}, locToday = {}, locWeek = {};
+        LOCATIONS.forEach(l => { locOver[l] = 0; locToday[l] = 0; locWeek[l] = 0; });
+
         records.forEach(r => {
           const d = parseDateMidnight(r['Follow-Up Date']);
           if (!d) return;
-          if (d < today) overdue++;
-          else if (d.getTime() === today.getTime()) dueToday++;
-          else if (d <= weekEnd) dueWeek++;
+          const loc = String(r['NJDPT Location'] || '').trim();
+          const known = LOCATIONS.indexOf(loc) !== -1;
+          if (d < today) {
+            overdue++;
+            if (known) locOver[loc]++;
+          } else if (d.getTime() === today.getTime()) {
+            dueToday++;
+            if (known) locToday[loc]++;
+          } else if (d <= weekEnd) {
+            dueWeek++;
+            if (known) locWeek[loc]++;
+          }
         });
 
         host.innerHTML = '<div class="bd-pills">'
@@ -2068,12 +2079,41 @@
           + bdPill('Due Today', dueToday, 'amber')
           + bdPill('Due This Week', dueWeek, 'blue')
           + '</div>'
-          + bdCanvas('bdCanvasDueLoc', 160, 'Due follow-ups by location');
+          + bdCanvas('bdCanvasDueLoc', 200, 'Follow-ups by office & urgency');
+
+        // Cap the value axis a bit above the busiest office so short bars
+        // don't stretch all the way across the box.
+        const totals = LOCATIONS.map(l => locWeek[l] + locToday[l] + locOver[l]);
+        const maxTotal = Math.max(0, ...totals);
+        const axisMax = Math.max(5, maxTotal + Math.max(2, Math.ceil(maxTotal * 0.3)));
 
         chartDueLoc = new Chart(bdEl('bdCanvasDueLoc'), {
           type: 'bar',
-          data: { labels: LOCATIONS, datasets: [{ data: countByOrder(filtered, 'NJDPT Location', LOCATIONS), backgroundColor: '#b91c1c', borderRadius: 4 }] },
-          options: barOptions('y')
+          data: {
+            labels: LOCATIONS,
+            datasets: [
+              { label: 'Due This Week', data: LOCATIONS.map(l => locWeek[l]), backgroundColor: '#1f4e78', borderRadius: 3, maxBarThickness: 26 },
+              { label: 'Due Today', data: LOCATIONS.map(l => locToday[l]), backgroundColor: '#c47d00', borderRadius: 3, maxBarThickness: 26 },
+              { label: 'Overdue', data: LOCATIONS.map(l => locOver[l]), backgroundColor: '#b91c1c', borderRadius: 3, maxBarThickness: 26 }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'bottom',
+                labels: { boxWidth: 10, boxHeight: 10, color: '#6b7a8d', font: { family: CHART_FONT, size: 11 } }
+              },
+              tooltip: CHART_TOOLTIP
+            },
+            scales: {
+              x: { stacked: true, beginAtZero: true, max: axisMax, grid: { color: '#eef1f5' }, ticks: { color: '#6b7a8d', precision: 0, stepSize: 1 } },
+              y: { stacked: true, grid: { display: false }, ticks: { color: '#6b7a8d' } }
+            }
+          }
         });
 
       } else if (type === 'successful') {
@@ -2128,7 +2168,6 @@
 
     /* ============================================================
        Quick Update — lightweight status/date/note logging.
-       Reuses saveReferralRecord, showToast, and normalizeDateForInput.
        ============================================================ */
 
     let currentQuickRecord = null;
@@ -2136,16 +2175,13 @@
     function openQuickUpdate(record) {
       currentQuickRecord = record;
 
-      // Set modal title to org name
       document.getElementById('quickModalTitle').textContent = record['Organization'] || 'Quick Update';
 
-      // Pre-fill fields
       document.getElementById('quickStatus').value = record['Status'] || 'New Opportunity';
       document.getElementById('quickFollowUp').value = normalizeDateForInput('Follow-Up Date', record['Follow-Up Date']);
-      document.getElementById('quickLastContact').value = new Date().toISOString().slice(0, 10); // today
+      document.getElementById('quickLastContact').value = new Date().toISOString().slice(0, 10);
       document.getElementById('quickNotes').value = '';
 
-      // Open modal
       const modal = document.getElementById('quickModal');
       modal.style.display = 'block';
       requestAnimationFrame(() => modal.classList.add('open'));
@@ -2166,14 +2202,12 @@
         hour: 'numeric', minute: '2-digit', hour12: true
       });
 
-      // Append note with timestamp if there is one
       let updatedNotes = currentQuickRecord['Notes'] || '';
       if (newNote) {
         const entry = '[' + timestamp + '] ' + newNote;
         updatedNotes = updatedNotes ? entry + '\n\n' + updatedNotes : entry;
       }
 
-      // Build updated record — copy all existing fields, overwrite changed ones
       const updatedRecord = Object.assign({}, currentQuickRecord, {
         'Status': document.getElementById('quickStatus').value,
         'Follow-Up Date': document.getElementById('quickFollowUp').value,
@@ -2195,13 +2229,10 @@
 
     /* ============================================================
        Duplicate detection (dedup) — additive.
-       Auto-scans after data loads; surfaces flagged pairs in a
-       modal that reuses the app's modal + toast systems.
        ============================================================ */
 
     let dupFlags = [];
 
-    // Runs a background duplicate scan; opens the alert modal only if pairs are found.
     function runDuplicateScan() {
       google.script.run
         .withSuccessHandler(flags => {
@@ -2212,7 +2243,6 @@
         .getDuplicateFlags();
     }
 
-    // Opens (or refreshes) the duplicate modal using the app's display/open pattern.
     function openDuplicateModal(flags) {
       dupFlags = Array.isArray(flags) ? flags.slice() : [];
       renderDupList();
@@ -2227,16 +2257,12 @@
       }
     }
 
-    // Closes the duplicate modal without resolving anything.
     function closeDuplicateModal() {
       const modal = document.getElementById('dupModal');
       modal.classList.remove('open');
       setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
-    // Renders one card per flagged pair and updates the count subtitle.
-    // Each side is tagged Entry A / Entry B so the delete buttons are unambiguous.
-    // Phone numbers are formatted here for display; the backend keeps them unformatted.
     function renderDupList() {
       const list = document.getElementById('dupList');
       const subtitle = document.getElementById('dupSubtitle');
@@ -2272,9 +2298,6 @@
       }).join('');
     }
 
-    // Swaps a card's action row for a "which record?" chooser. Buttons are labelled
-    // Entry A / Entry B, show that record's phone + website, and highlight the side
-    // they will delete on hover/focus — so identical names are never ambiguous.
     function startDeleteConfirm(index) {
       const flag = dupFlags[index];
       if (!flag) return;
@@ -2311,7 +2334,6 @@
         </div>`;
     }
 
-    // Builds the "phone · website" line shown on each delete button.
     function dupContactText(phone, domain) {
       const parts = [];
       const p = formatPhone(phone);
@@ -2320,7 +2342,6 @@
       return parts.length ? parts.join(' · ') : 'no phone or website on file';
     }
 
-    // Outlines the card side (a = left/Entry A, b = right/Entry B) a delete button targets.
     function highlightSide(index, side) {
       const card = document.querySelector('.dup-card[data-index="' + index + '"]');
       if (!card) return;
@@ -2328,15 +2349,12 @@
       card.classList.add('hl-' + side);
     }
 
-    // Clears any side highlight on the card.
     function clearHighlight(index) {
       const card = document.querySelector('.dup-card[data-index="' + index + '"]');
       if (!card) return;
       card.classList.remove('hl-a', 'hl-b');
     }
 
-    // Deletes whichever side the user chose ('incoming' or 'matched').
-    // Archiving to Deleted History happens server-side inside deleteFlaggedRecord.
     function confirmDelete(index, which) {
       const flag = dupFlags[index];
       if (!flag) return;
@@ -2352,7 +2370,6 @@
         .deleteFlaggedRecord(id);
     }
 
-    // Marks a pair as not-a-duplicate (persisted), drops the card, toasts.
     function notDuplicate(index) {
       const flag = dupFlags[index];
       if (!flag) return;
@@ -2366,7 +2383,6 @@
         .dismissPair(flag.incomingId, flag.matchedId);
     }
 
-    // Removes a resolved pair; auto-closes the modal when none remain.
     function removeDupPair(index) {
       dupFlags.splice(index, 1);
       if (dupFlags.length === 0) {
@@ -2379,12 +2395,10 @@
 
     /* ============================================================
        Admin Settings — manage reminder email recipients.
-       Edits a local array; only persists on Save Changes.
        ============================================================ */
 
     let adminEmails = [];
 
-    // Opens the admin modal and loads the current recipient list from the backend.
     function openAdminPanel() {
       const modal = document.getElementById('adminModal');
       modal.style.display = 'block';
@@ -2405,14 +2419,12 @@
         .getAdminEmails();
     }
 
-    // Closes the admin modal with the shared fade-out animation.
     function closeAdminPanel() {
       const modal = document.getElementById('adminModal');
       modal.classList.remove('open');
       setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
-    // Renders the recipient list as removable pills (or muted empty text).
     function renderAdminList(emails) {
       const list = document.getElementById('adminEmailList');
       if (!emails || !emails.length) {
@@ -2427,7 +2439,6 @@
       }).join('');
     }
 
-    // Validates and adds a new email to the local list (does not save yet).
     function addAdminEmail() {
       const input = document.getElementById('adminEmailInput');
       const email = String(input.value || '').trim();
@@ -2452,13 +2463,11 @@
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
     }
 
-    // Removes an email from the local list (does not save yet).
     function removeAdminEmail(email) {
       adminEmails = adminEmails.filter(e => e !== email);
       renderAdminList(adminEmails);
     }
 
-    // Persists the current local list to the backend, then closes + toasts.
     function saveAdminEmails() {
       google.script.run
         .withSuccessHandler(() => {
@@ -2477,7 +2486,6 @@
 
     let deletedHistory = [];
 
-    // Opens the history modal and loads the archived deletions.
     function openHistory() {
       const modal = document.getElementById('historyModal');
       modal.style.display = 'block';
@@ -2487,14 +2495,12 @@
       loadHistory();
     }
 
-    // Closes the history modal with the shared fade-out animation.
     function closeHistory() {
       const modal = document.getElementById('historyModal');
       modal.classList.remove('open');
       setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
-    // Fetches the deleted-history list from the backend and renders it.
     function loadHistory() {
       google.script.run
         .withSuccessHandler(rows => {
@@ -2509,7 +2515,6 @@
         .getDeletedHistory();
     }
 
-    // Renders each deleted record with its metadata and a Restore button.
     function renderHistory() {
       const list = document.getElementById('historyList');
       const subtitle = document.getElementById('historySubtitle');
@@ -2546,7 +2551,6 @@
       }).join('');
     }
 
-    // Restores one deleted record back into the tracker, then refreshes both views.
     function restoreHistory(index) {
       const entry = deletedHistory[index];
       if (!entry) return;
