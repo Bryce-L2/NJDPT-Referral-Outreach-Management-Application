@@ -649,7 +649,7 @@
       align-items: stretch;
       gap: 14px;
     }
-    .dup-side { flex: 1; min-width: 0; }
+    .dup-side { flex: 1; min-width: 0; border-radius: 6px; transition: background 0.12s ease, box-shadow 0.12s ease; }
     .dup-org {
       font-weight: 700;
       font-size: 14px;
@@ -693,6 +693,52 @@
     }
     .btn-danger:hover { background: #991b1b; }
 
+    /* Per-side labels + delete-choice buttons */
+    .dup-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7a8d;
+      background: #f0f4f8;
+      border: 1px solid #d0dae6;
+      border-radius: 999px;
+      padding: 1px 8px;
+      margin-bottom: 5px;
+    }
+
+    /* Highlight the side that the hovered/focused delete button will remove */
+    .dup-card.hl-a .dup-side-a,
+    .dup-card.hl-b .dup-side-b {
+      background: #fef2f2;
+      box-shadow: 0 0 0 2px #b91c1c;
+    }
+    .dup-card.hl-a .dup-side-a .dup-tag,
+    .dup-card.hl-b .dup-side-b .dup-tag {
+      background: #b91c1c;
+      border-color: #b91c1c;
+      color: #ffffff;
+    }
+
+    .dup-del-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      text-align: left;
+      line-height: 1.25;
+      max-width: 100%;
+    }
+    .dup-del-title { font-weight: 700; }
+    .dup-del-sub {
+      font-size: 11px;
+      font-weight: 500;
+      opacity: 0.88;
+      white-space: normal;
+      word-break: break-word;
+    }
+
     .dup-confirm {
       width: 100%;
       background: #fef2f2;
@@ -707,6 +753,7 @@
       display: flex;
       gap: 8px;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
 
     @media (max-width: 600px) {
@@ -1199,6 +1246,19 @@
         .replaceAll("'", '&#039;');
     }
 
+    // Formats a US phone for display: 10 digits -> (201) 555-1234.
+    // 11 digits starting with 1 -> +1 (201) 555-1234. Otherwise returns the raw value.
+    function formatPhone(value) {
+      const digits = String(value ?? '').replace(/\D/g, '');
+      if (digits.length === 10) {
+        return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+      }
+      if (digits.length === 11 && digits.charAt(0) === '1') {
+        return '+1 (' + digits.slice(1, 4) + ') ' + digits.slice(4, 7) + '-' + digits.slice(7);
+      }
+      return String(value ?? '');
+    }
+
     function setMessage(message) {
       document.getElementById('message').textContent = message;
     }
@@ -1571,6 +1631,8 @@
     }
 
     // Renders one card per flagged pair and updates the count subtitle.
+    // Each side is tagged Entry A / Entry B so the delete buttons are unambiguous.
+    // Phone numbers are formatted here for display; the backend keeps them unformatted.
     function renderDupList() {
       const list = document.getElementById('dupList');
       const subtitle = document.getElementById('dupSubtitle');
@@ -1583,15 +1645,17 @@
         return `
           <div class="dup-card ${cls}" data-index="${index}">
             <div class="dup-compare">
-              <div class="dup-side">
+              <div class="dup-side dup-side-a">
+                <div class="dup-tag">Entry A</div>
                 <div class="dup-org">${escapeHtml(flag.incomingOrg) || 'Untitled'}</div>
-                <div class="dup-meta">${escapeHtml(flag.incomingPhone) || '&mdash;'}</div>
+                <div class="dup-meta">${escapeHtml(formatPhone(flag.incomingPhone)) || '&mdash;'}</div>
                 <div class="dup-meta">${escapeHtml(flag.incomingDomain) || '&mdash;'}</div>
               </div>
               <div class="dup-vs">vs</div>
-              <div class="dup-side">
+              <div class="dup-side dup-side-b">
+                <div class="dup-tag">Entry B</div>
                 <div class="dup-org">${escapeHtml(flag.matchedOrg) || 'Untitled'}</div>
-                <div class="dup-meta">${escapeHtml(flag.matchedPhone) || '&mdash;'}</div>
+                <div class="dup-meta">${escapeHtml(formatPhone(flag.matchedPhone)) || '&mdash;'}</div>
                 <div class="dup-meta">${escapeHtml(flag.matchedDomain) || '&mdash;'}</div>
               </div>
             </div>
@@ -1604,7 +1668,9 @@
       }).join('');
     }
 
-    // Swaps a card's action row for an inline delete confirmation.
+    // Swaps a card's action row for a "which record?" chooser. Buttons are labelled
+    // Entry A / Entry B, show that record's phone + website, and highlight the side
+    // they will delete on hover/focus — so identical names are never ambiguous.
     function startDeleteConfirm(index) {
       const flag = dupFlags[index];
       if (!flag) return;
@@ -1612,21 +1678,66 @@
       const card = document.querySelector('.dup-card[data-index="' + index + '"]');
       if (!card) return;
 
+      const aName = escapeHtml(flag.incomingOrg) || 'Untitled';
+      const bName = escapeHtml(flag.matchedOrg) || 'Untitled';
+      const aWho = escapeHtml(dupContactText(flag.incomingPhone, flag.incomingDomain));
+      const bWho = escapeHtml(dupContactText(flag.matchedPhone, flag.matchedDomain));
+
       const actions = card.querySelector('[data-role="actions"]');
       actions.innerHTML = `
         <div class="dup-confirm">
-          Delete ${escapeHtml(flag.incomingOrg) || 'this record'}? This cannot be undone.
+          Which record should be deleted? The other one is kept. This cannot be undone.
           <div class="dup-confirm-actions">
-            <button type="button" class="btn-danger" onclick="confirmDelete(${index})">Confirm</button>
+            <button type="button" class="btn-danger dup-del-btn"
+              onclick="confirmDelete(${index}, 'incoming')"
+              onmouseenter="highlightSide(${index}, 'a')" onmouseleave="clearHighlight(${index})"
+              onfocus="highlightSide(${index}, 'a')" onblur="clearHighlight(${index})">
+              <span class="dup-del-title">Delete Entry A (left)</span>
+              <span class="dup-del-sub">${aName} — ${aWho}</span>
+            </button>
+            <button type="button" class="btn-danger dup-del-btn"
+              onclick="confirmDelete(${index}, 'matched')"
+              onmouseenter="highlightSide(${index}, 'b')" onmouseleave="clearHighlight(${index})"
+              onfocus="highlightSide(${index}, 'b')" onblur="clearHighlight(${index})">
+              <span class="dup-del-title">Delete Entry B (right)</span>
+              <span class="dup-del-sub">${bName} — ${bWho}</span>
+            </button>
             <button type="button" class="btn-secondary" onclick="renderDupList()">Cancel</button>
           </div>
         </div>`;
     }
 
-    // Deletes the incoming (later) record of the pair, drops the card, reloads data.
-    function confirmDelete(index) {
+    // Builds the "phone · website" line shown on each delete button.
+    function dupContactText(phone, domain) {
+      const parts = [];
+      const p = formatPhone(phone);
+      if (p) parts.push(p);
+      if (domain) parts.push(domain);
+      return parts.length ? parts.join(' · ') : 'no phone or website on file';
+    }
+
+    // Outlines the card side (a = left/Entry A, b = right/Entry B) a delete button targets.
+    function highlightSide(index, side) {
+      const card = document.querySelector('.dup-card[data-index="' + index + '"]');
+      if (!card) return;
+      card.classList.remove('hl-a', 'hl-b');
+      card.classList.add('hl-' + side);
+    }
+
+    // Clears any side highlight on the card.
+    function clearHighlight(index) {
+      const card = document.querySelector('.dup-card[data-index="' + index + '"]');
+      if (!card) return;
+      card.classList.remove('hl-a', 'hl-b');
+    }
+
+    // Deletes whichever side the user chose ('incoming' or 'matched'),
+    // drops the card, and reloads data.
+    function confirmDelete(index, which) {
       const flag = dupFlags[index];
       if (!flag) return;
+
+      const id = which === 'matched' ? flag.matchedId : flag.incomingId;
 
       google.script.run
         .withSuccessHandler(() => {
@@ -1634,7 +1745,7 @@
           loadData();
         })
         .withFailureHandler(showError)
-        .deleteFlaggedRecord(flag.incomingId);
+        .deleteFlaggedRecord(id);
     }
 
     // Marks a pair as not-a-duplicate (persisted), drops the card, toasts.
