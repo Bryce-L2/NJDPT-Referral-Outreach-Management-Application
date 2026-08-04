@@ -112,6 +112,32 @@ function saveReferralRecord(record) {
   return { success: true, id: id };
 }
 
+// Checks a NEW record for duplicates before saving. Edits (records that already have
+// an ID) skip the check entirely. Returns { status: 'saved', id } when written, or
+// { status: 'duplicate', ... } when a likely/review match is found (nothing written).
+function checkAndSaveRecord(record) {
+  const hasId = record && String(record['ID'] || '').trim() !== '';
+
+  if (!hasId) {
+    const existingRecords = getReferralRecords();
+    const outcome = checkDuplicate(record, existingRecords); // from Dedup.gs
+
+    if (outcome.result === 'LIKELY_DUPLICATE' || outcome.result === 'REVIEW') {
+      const matched = outcome.matchedRecord || {};
+      return {
+        status: 'duplicate',
+        result: outcome.result,
+        reason: outcome.reason,
+        matchedOrg: matched['Organization'] || '',
+        matchedId: matched['ID'] || ''
+      };
+    }
+  }
+
+  const saved = saveReferralRecord(record);
+  return { status: 'saved', id: saved.id };
+}
+
 function deleteReferralRecord(id) {
   const sheet = setupReferralTracker();
   const row = findRowById_(sheet, id);
@@ -120,6 +146,7 @@ function deleteReferralRecord(id) {
     throw new Error('Record not found.');
   }
 
+  archiveRecordFromTracker_(id); // save a copy to Deleted History before removing
   sheet.deleteRow(row);
   return { success: true };
 }
