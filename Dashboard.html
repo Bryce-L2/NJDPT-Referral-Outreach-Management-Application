@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; }
 
@@ -69,6 +70,26 @@
     }
 
     .hdr-right { flex: 1; }
+
+    /* Admin tool buttons in the navy header (right side) */
+    .hdr-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .hdr-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .hdr-btn:hover { background: rgba(255, 255, 255, 0.22); }
+    .hdr-btn svg { width: 15px; height: 15px; }
 
     /* ===================== Layout ===================== */
     main { padding: 22px 24px 40px; }
@@ -162,6 +183,10 @@
       background-position: right 12px center;
     }
 
+    /* Widen filter dropdowns so long labels like "All NJDPT Locations" fit fully */
+    .toolbar select { min-width: 160px; }
+    .toolbar #locationFilter { min-width: 190px; }
+
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: #163a5f;
@@ -184,6 +209,24 @@
     }
     .btn-add:hover { background: #1f4e78; }
     .btn-add svg { width: 16px; height: 16px; }
+
+    /* Secondary toolbar button (History) */
+    .btn-tool {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0f4f8;
+      color: #163a5f;
+      border: 1px solid #d0dae6;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-tool:hover { background: #e3e9f1; }
+    .btn-tool svg { width: 16px; height: 16px; }
 
     /* ===================== Status message ===================== */
     .status {
@@ -282,6 +325,8 @@
     .act-btn svg { width: 15px; height: 15px; display: block; }
     .act-btn.edit { background: #f0f4f8; color: #163a5f; }
     .act-btn.edit:hover { background: #dbeafe; }
+    .act-btn.quick { background: #f0fdf4; color: #0a7c4e; }
+    .act-btn.quick:hover { background: #dcfce7; }
     .act-btn.del { background: #fee2e2; color: #b91c1c; }
     .act-btn.del:hover { background: #fecaca; }
 
@@ -427,6 +472,10 @@
       .hdr-title p { display: none; }
     }
 
+    @media (max-width: 640px) {
+      .hdr-btn-label { display: none; } /* icon-only admin button on small screens */
+    }
+
     /* ============================================================
        Flair / wow-factor enhancements (presentation-only)
        ============================================================ */
@@ -570,6 +619,42 @@
     .detail-item .muted { color: #9aa8b8; }
 
     /* ============================================================
+       Quick Update modal
+       ============================================================ */
+    .modal-box-quick { max-width: 500px; }
+
+    .quick-grid { display: flex; flex-direction: column; gap: 16px; }
+
+    .quick-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #163a5f;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .quick-field input,
+    .quick-field select,
+    .quick-field textarea {
+      width: 100%;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: normal;
+      color: #1a2330;
+      background: #ffffff;
+      border: 1px solid #d0dae6;
+      border-radius: 8px;
+      padding: 11px 12px;
+    }
+    .quick-field textarea {
+      min-height: 100px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    /* ============================================================
        Breakdown modal (summary card click)
        ============================================================ */
     .modal-box-wide { max-width: 720px; }
@@ -601,20 +686,28 @@
 
     .bd-empty { padding: 30px 10px; text-align: center; color: #6b7a8d; font-weight: 600; }
 
-    .bd-soon {
-      margin-top: 18px;
-      padding: 14px 16px;
-      border: 1px dashed #cdd7e2;
-      border-radius: 8px;
-      background: #f6f9fc;
-      color: #6b7a8d;
-      font-size: 12.5px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    /* Breakdown charts + urgency pills */
+    #breakdownModal .modal-box { max-width: 680px; }
+    #bdCharts { margin-bottom: 16px; }
+    #bdCharts:empty { display: none; margin: 0; }
+    .bd-charts-row { display: flex; gap: 16px; }
+    .bd-chart { flex: 1; min-width: 0; }
+    .bd-chart-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7a8d; font-weight: 700; margin: 0 0 8px; text-align: center; }
+    .bd-canvas-wrap { position: relative; width: 100%; }
+
+    .bd-pills { display: flex; gap: 10px; margin-bottom: 16px; }
+    .bd-pill { flex: 1; border-radius: 8px; padding: 14px 12px; text-align: center; border: 1px solid; }
+    .bd-pill-num { font-size: 24px; font-weight: 700; line-height: 1; }
+    .bd-pill-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+    .bd-pill-red { background: #fef2f2; border-color: #f4c9c9; color: #b91c1c; }
+    .bd-pill-amber { background: #fef8ec; border-color: #f0d9a8; color: #c47d00; }
+    .bd-pill-blue { background: #eef4fb; border-color: #c9dcf1; color: #1f4e78; }
+
+    @media (max-width: 600px) {
+      .bd-charts-row { flex-direction: column; }
+      .bd-canvas-wrap { height: 180px !important; }
+      .bd-pills { flex-wrap: wrap; }
     }
-    .bd-soon svg { width: 20px; height: 20px; color: #9aa8b8; flex: none; }
 
     /* ============================================================
        Duplicate Alert modal (dedup) — additive, matches system
@@ -756,6 +849,66 @@
       flex-wrap: wrap;
     }
 
+    /* ============================================================
+       Admin Settings modal
+       ============================================================ */
+    .admin-section { margin-bottom: 18px; }
+    .admin-section:last-child { margin-bottom: 0; }
+    .admin-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #163a5f;
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+    .admin-empty { color: #9aa8b8; font-size: 13px; }
+    .admin-add-row { display: flex; gap: 8px; }
+    .admin-add-row input { flex: 1; }
+
+    .admin-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f0f4f8;
+      border: 1px solid #d0dae6;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .admin-pill button {
+      background: none;
+      border: none;
+      color: #b91c1c;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .admin-pill button:hover { color: #991b1b; }
+
+    /* ============================================================
+       Deleted History modal
+       ============================================================ */
+    .hist-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow: auto; }
+    .hist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid #e3e9f1;
+      border-radius: 8px;
+      background: #fafcfe;
+    }
+    .hist-main { min-width: 0; }
+    .hist-org { font-weight: 700; color: #163a5f; font-size: 14px; word-break: break-word; }
+    .hist-sub { font-size: 12px; color: #6b7a8d; margin-top: 2px; word-break: break-word; }
+    .hist-right { flex: none; }
+    .hist-restored { color: #0a7c4e; font-weight: 700; font-size: 12px; }
+    .hist-empty { padding: 30px 10px; text-align: center; color: #6b7a8d; font-weight: 600; }
+
     @media (max-width: 600px) {
       .dup-compare { flex-direction: column; }
       .dup-vs { align-self: flex-start; }
@@ -774,7 +927,14 @@
       <h1>Community &amp; Referral Relationship Finder</h1>
       <p>Public-source outreach opportunities and relationship tracking</p>
     </div>
-    <div class="hdr-right"></div>
+    <div class="hdr-right">
+      <div id="adminTools" class="hdr-tools" style="display:none;">
+        <button class="hdr-btn" title="Admin Settings" onclick="openAdminPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="hdr-btn-label">Admin</span>
+        </button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -856,6 +1016,10 @@
       <button class="btn-add" onclick="openForm()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Add Opportunity
+      </button>
+      <button class="btn-tool" title="Deleted history" onclick="openHistory()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+        History
       </button>
     </section>
 
@@ -1006,6 +1170,48 @@
     </div>
   </div>
 
+  <!-- Quick Update modal -->
+  <div id="quickModal" class="modal" onclick="if(event.target===this) closeQuickUpdate()">
+    <div class="modal-box modal-box-quick">
+      <div class="modal-head">
+        <div>
+          <h2 id="quickModalTitle">Quick Update</h2>
+          <p class="dup-subtitle">Quick Update</p>
+        </div>
+        <button type="button" class="modal-x" onclick="closeQuickUpdate()" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="quick-grid">
+          <label class="quick-field">Status
+            <select id="quickStatus">
+              <option>New Opportunity</option>
+              <option>Contacted</option>
+              <option>Follow-Up Needed</option>
+              <option>Active Relationship</option>
+              <option>Not Pursuing</option>
+            </select>
+          </label>
+
+          <label class="quick-field">Follow-Up Date
+            <input id="quickFollowUp" type="date">
+          </label>
+
+          <label class="quick-field">Last Contact
+            <input id="quickLastContact" type="date">
+          </label>
+
+          <label class="quick-field">Notes
+            <textarea id="quickNotes" placeholder="Add a note — will be appended with timestamp"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-secondary" onclick="closeQuickUpdate(); editRecord(currentQuickRecord)">Edit Full Record</button>
+        <button type="button" class="btn-primary" onclick="saveQuickUpdate()">Save Update</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Row detail modal (centered card) -->
   <div id="detailModal" class="modal" onclick="if(event.target===this) closeDetail()">
     <div class="modal-box modal-box-detail">
@@ -1038,11 +1244,8 @@
       </div>
       <div class="modal-body">
         <div id="bdCount" class="bd-count"></div>
+        <div id="bdCharts"></div>
         <div id="bdList" class="bd-list"></div>
-        <div class="bd-soon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6"/></svg>
-          <span>Charts &amp; analytics for this metric are coming soon.</span>
-        </div>
       </div>
     </div>
   </div>
@@ -1063,6 +1266,53 @@
     </div>
   </div>
 
+  <!-- Admin Settings modal -->
+  <div id="adminModal" class="modal" onclick="if(event.target===this) closeAdminPanel()">
+    <div class="modal-box modal-box-detail">
+      <div class="modal-head">
+        <div>
+          <h2>Admin Settings</h2>
+          <p class="dup-subtitle">Manage reminder email recipients</p>
+        </div>
+        <button type="button" class="modal-x" onclick="closeAdminPanel()" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="admin-section">
+          <div class="admin-label">Reminder Recipients</div>
+          <div id="adminEmailList"></div>
+        </div>
+        <div class="admin-section">
+          <div class="admin-label">Add New Admin</div>
+          <div class="admin-add-row">
+            <input id="adminEmailInput" type="email" placeholder="Enter email address"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();addAdminEmail();}">
+            <button type="button" class="btn-primary" onclick="addAdminEmail()">Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-secondary" onclick="closeAdminPanel()">Cancel</button>
+        <button type="button" class="btn-primary" onclick="saveAdminEmails()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deleted History modal -->
+  <div id="historyModal" class="modal" onclick="if(event.target===this) closeHistory()">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-head">
+        <div>
+          <h2>Deleted History</h2>
+          <p id="historySubtitle" class="dup-subtitle">No deleted records</p>
+        </div>
+        <button type="button" class="modal-x" onclick="closeHistory()" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="historyList" class="hist-list"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     let records = [];
     // Presentation-only: the records currently visible in the table, indexed for row clicks.
@@ -1074,7 +1324,22 @@
       document.getElementById('categoryFilter').addEventListener('change', renderTable);
       document.getElementById('statusFilter').addEventListener('change', renderTable);
       loadData();
+      initUserContext();
     });
+
+    // Shows the admin-only header tools if the current user is a whitelisted admin.
+    // The admin list lives in Reminders.gs; the backend also enforces it on every call.
+    function initUserContext() {
+      google.script.run
+        .withSuccessHandler(ctx => {
+          if (ctx && ctx.isAdmin) {
+            const tools = document.getElementById('adminTools');
+            if (tools) tools.style.display = 'flex';
+          }
+        })
+        .withFailureHandler(() => {}) // stay hidden on any error
+        .getUserContext();
+    }
 
     function loadData() {
       setMessage('Loading records...');
@@ -1149,6 +1414,7 @@
           <td>${valueBadge(record['Relationship Value'])}</td>
           <td class="actions">
             <button class="act-btn edit" title="Edit" onclick='editRecord(${JSON.stringify(record)})'>${ICON_EDIT}</button>
+            <button class="act-btn quick" title="Quick Update" onclick='openQuickUpdate(${JSON.stringify(record)})'>${ICON_QUICK}</button>
             <button class="act-btn del" title="Delete" onclick='removeRecord(${JSON.stringify(record["ID"])})'>${ICON_DELETE}</button>
           </td>
         `;
@@ -1207,6 +1473,7 @@
         .saveReferralRecord(record);
     }
 
+    // Deletion is archived to Deleted History server-side (inside deleteReferralRecord).
     function removeRecord(id) {
       if (!confirm('Delete this referral record?')) return;
 
@@ -1277,6 +1544,7 @@
     /* ============ Added presentation-only helpers ============ */
 
     const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+    const ICON_QUICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M3 4h13v7H3z"/><path d="M3 15h7"/><path d="M3 19h5"/></svg>';
     const ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>';
 
     function statusBadge(value) {
@@ -1546,9 +1814,27 @@
       active:     { title: 'Active Relationships',    eyebrow: 'Status is an active relationship',       match: r => String(r['Status']).toLowerCase() === 'active relationship' }
     };
 
+    // Applies the per-modal sort order to the filtered subset.
+    function sortBreakdownRecords(type, recs) {
+      const list = recs.slice();
+      if (type === 'total') {
+        list.sort((a, b) => String(a['Organization'] || '').localeCompare(String(b['Organization'] || '')));
+      } else if (type === 'due') {
+        list.sort((a, b) => bdDateValue(a['Follow-Up Date']) - bdDateValue(b['Follow-Up Date']));
+      } else if (type === 'active') {
+        const rank = { 'High': 0, 'Medium': 1, 'Low': 2, 'Potential': 3 };
+        list.sort((a, b) => {
+          const ra = rank[String(a['Relationship Value'] || '').trim()];
+          const rb = rank[String(b['Relationship Value'] || '').trim()];
+          return (ra == null ? 4 : ra) - (rb == null ? 4 : rb);
+        });
+      }
+      return list;
+    }
+
     function openBreakdown(type) {
       const config = BREAKDOWN_CONFIG[type] || BREAKDOWN_CONFIG.total;
-      breakdownRecords = records.filter(config.match);
+      breakdownRecords = sortBreakdownRecords(type, records.filter(config.match));
 
       document.getElementById('bdEyebrow').textContent = config.eyebrow;
       document.getElementById('bdTitle').textContent = config.title;
@@ -1580,6 +1866,7 @@
 
       const modal = document.getElementById('breakdownModal');
       modal.style.display = 'block';
+      renderBreakdownCharts(type, breakdownRecords);
       requestAnimationFrame(() => modal.classList.add('open'));
     }
 
@@ -1587,6 +1874,323 @@
       const modal = document.getElementById('breakdownModal');
       modal.classList.remove('open');
       setTimeout(() => { modal.style.display = 'none'; }, 200);
+    }
+
+    /* ============================================================
+       Breakdown charts (Chart.js) — visual analytics on top of the
+       existing org lists. Reads only the in-memory `records` array.
+       ============================================================ */
+
+    const CHART_COLORS = [
+      '#163a5f', '#1f4e78', '#0a7c4e', '#c47d00', '#b91c1c',
+      '#6b7a8d', '#2563eb', '#7c3aed', '#0891b2', '#be185d'
+    ];
+    const CHART_FONT = "'Plus Jakarta Sans', 'Montserrat', sans-serif";
+    const CHART_TOOLTIP = {
+      backgroundColor: '#ffffff',
+      borderColor: '#163a5f',
+      borderWidth: 1,
+      titleColor: '#163a5f',
+      bodyColor: '#1a2330',
+      titleFont: { family: CHART_FONT, weight: '700' },
+      bodyFont: { family: CHART_FONT },
+      padding: 10,
+      displayColors: false
+    };
+    const LOCATIONS = ['Montville', 'Paramus', 'Riverdale', 'Wayne'];
+
+    // Chart instances — destroyed and recreated on every modal open.
+    let chartTotalCat = null;
+    let chartTotalLoc = null;
+    let chartDueLoc = null;
+    let chartSuccCat = null;
+    let chartSuccConn = null;
+    let chartActiveVal = null;
+    let chartActiveOut = null;
+
+    // Draws the centered total inside the Total-modal donut.
+    const bdCenterTextPlugin = {
+      id: 'bdCenterText',
+      afterDraw(chart) {
+        const opt = chart.options.plugins && chart.options.plugins.bdCenterText;
+        if (!opt || opt.text == null) return;
+        const ctx = chart.ctx;
+        const area = chart.chartArea;
+        const cx = (area.left + area.right) / 2;
+        const cy = (area.top + area.bottom) / 2;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#163a5f';
+        ctx.font = '700 24px ' + CHART_FONT;
+        ctx.fillText(String(opt.text), cx, cy - 4);
+        if (opt.label) {
+          ctx.fillStyle = '#6b7a8d';
+          ctx.font = '600 10px ' + CHART_FONT;
+          ctx.fillText(String(opt.label).toUpperCase(), cx, cy + 14);
+        }
+        ctx.restore();
+      }
+    };
+    if (window.Chart) { Chart.register(bdCenterTextPlugin); }
+
+    // Destroys any live breakdown chart instances.
+    function destroyBreakdownCharts() {
+      [chartTotalCat, chartTotalLoc, chartDueLoc, chartSuccCat, chartSuccConn, chartActiveVal, chartActiveOut]
+        .forEach(c => { if (c) c.destroy(); });
+      chartTotalCat = chartTotalLoc = chartDueLoc = chartSuccCat = chartSuccConn = chartActiveVal = chartActiveOut = null;
+    }
+
+    // --- small data helpers ---
+    function midnightToday() { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }
+
+    function parseDateMidnight(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return null;
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function bdDateValue(value) {
+      const d = parseDateMidnight(value);
+      return d ? d.getTime() : Infinity;
+    }
+
+    function groupCount(recs, key) {
+      const map = {};
+      recs.forEach(r => {
+        const v = String(r[key] == null ? '' : r[key]).trim() || 'Not set';
+        map[v] = (map[v] || 0) + 1;
+      });
+      return map;
+    }
+
+    function countByOrder(recs, key, order) {
+      const map = groupCount(recs, key);
+      return order.map(o => map[o] || 0);
+    }
+
+    function donutData(map) {
+      const labels = Object.keys(map);
+      const data = labels.map(l => map[l]);
+      const colors = labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+      return { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] };
+    }
+
+    // --- shared option builders ---
+    function arcOptions(opts) {
+      opts = opts || {};
+      const o = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP }
+      };
+      if (opts.cutout) o.cutout = opts.cutout;
+      if (opts.centerText) o.plugins.bdCenterText = opts.centerText;
+      return o;
+    }
+
+    function barOptions(indexAxis) {
+      const valueAxis = { grid: { color: '#eef1f5' }, ticks: { color: '#6b7a8d', precision: 0 }, beginAtZero: true };
+      const catAxis = { grid: { display: false }, ticks: { color: '#6b7a8d' } };
+      return {
+        indexAxis: indexAxis,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
+        scales: indexAxis === 'y'
+          ? { x: valueAxis, y: catAxis }
+          : { x: catAxis, y: valueAxis }
+      };
+    }
+
+    function bdEl(id) { return document.getElementById(id); }
+
+    function bdCanvas(id, height, title) {
+      return '<div class="bd-chart">'
+        + (title ? '<div class="bd-chart-title">' + title + '</div>' : '')
+        + '<div class="bd-canvas-wrap" style="height:' + height + 'px;"><canvas id="' + id + '"></canvas></div>'
+        + '</div>';
+    }
+
+    function bdPill(label, count, color) {
+      return '<div class="bd-pill bd-pill-' + color + '">'
+        + '<div class="bd-pill-num">' + count + '</div>'
+        + '<div class="bd-pill-label">' + label + '</div>'
+        + '</div>';
+    }
+
+    // Builds the charts for whichever breakdown modal just opened.
+    // `filtered` is the subset shown in the list; `records` is the full dataset.
+    function renderBreakdownCharts(type, filtered) {
+      const host = document.getElementById('bdCharts');
+      if (!host) return;
+
+      destroyBreakdownCharts();
+
+      if (!window.Chart) { host.innerHTML = ''; return; } // charts unavailable; list still shows
+
+      if (type === 'total') {
+        host.innerHTML = '<div class="bd-charts-row">'
+          + bdCanvas('bdCanvasTotalCat', 200, 'By Category')
+          + bdCanvas('bdCanvasTotalLoc', 200, 'By Location')
+          + '</div>';
+
+        chartTotalCat = new Chart(bdEl('bdCanvasTotalCat'), {
+          type: 'doughnut',
+          data: donutData(groupCount(records, 'Category')),
+          options: arcOptions({ cutout: '65%', centerText: { text: records.length, label: 'Total' } })
+        });
+
+        chartTotalLoc = new Chart(bdEl('bdCanvasTotalLoc'), {
+          type: 'bar',
+          data: { labels: LOCATIONS, datasets: [{ data: countByOrder(records, 'NJDPT Location', LOCATIONS), backgroundColor: '#163a5f', borderRadius: 4 }] },
+          options: barOptions('y')
+        });
+
+      } else if (type === 'due') {
+        const today = midnightToday();
+        const weekEnd = new Date(today);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
+        let overdue = 0, dueToday = 0, dueWeek = 0;
+        records.forEach(r => {
+          const d = parseDateMidnight(r['Follow-Up Date']);
+          if (!d) return;
+          if (d < today) overdue++;
+          else if (d.getTime() === today.getTime()) dueToday++;
+          else if (d <= weekEnd) dueWeek++;
+        });
+
+        host.innerHTML = '<div class="bd-pills">'
+          + bdPill('Overdue', overdue, 'red')
+          + bdPill('Due Today', dueToday, 'amber')
+          + bdPill('Due This Week', dueWeek, 'blue')
+          + '</div>'
+          + bdCanvas('bdCanvasDueLoc', 160, 'Due follow-ups by location');
+
+        chartDueLoc = new Chart(bdEl('bdCanvasDueLoc'), {
+          type: 'bar',
+          data: { labels: LOCATIONS, datasets: [{ data: countByOrder(filtered, 'NJDPT Location', LOCATIONS), backgroundColor: '#b91c1c', borderRadius: 4 }] },
+          options: barOptions('y')
+        });
+
+      } else if (type === 'successful') {
+        host.innerHTML = '<div class="bd-charts-row">'
+          + bdCanvas('bdCanvasSuccCat', 200, 'Successful by Category')
+          + bdCanvas('bdCanvasSuccConn', 200, 'Connection Status (all)')
+          + '</div>';
+
+        chartSuccCat = new Chart(bdEl('bdCanvasSuccCat'), {
+          type: 'pie',
+          data: donutData(groupCount(filtered, 'Category')),
+          options: arcOptions({})
+        });
+
+        let yes = 0, no = 0, pending = 0;
+        records.forEach(r => {
+          const v = String(r['Connection Successful'] || '').trim().toLowerCase();
+          if (v === 'yes') yes++;
+          else if (v === 'no') no++;
+          else pending++;
+        });
+
+        chartSuccConn = new Chart(bdEl('bdCanvasSuccConn'), {
+          type: 'doughnut',
+          data: { labels: ['Yes', 'No', 'Pending'], datasets: [{ data: [yes, no, pending], backgroundColor: ['#0a7c4e', '#b91c1c', '#6b7a8d'], borderWidth: 2, borderColor: '#ffffff' }] },
+          options: arcOptions({ cutout: '65%' })
+        });
+
+      } else if (type === 'active') {
+        host.innerHTML = '<div class="bd-charts-row">'
+          + bdCanvas('bdCanvasActiveVal', 200, 'By Relationship Value')
+          + bdCanvas('bdCanvasActiveOut', 200, 'By Outcome')
+          + '</div>';
+
+        const RV = ['High', 'Medium', 'Low', 'Potential'];
+        chartActiveVal = new Chart(bdEl('bdCanvasActiveVal'), {
+          type: 'bar',
+          data: { labels: RV, datasets: [{ data: countByOrder(filtered, 'Relationship Value', RV), backgroundColor: ['#0a7c4e', '#c47d00', '#6b7a8d', '#6b7a8d'], borderRadius: 4 }] },
+          options: barOptions('y')
+        });
+
+        chartActiveOut = new Chart(bdEl('bdCanvasActiveOut'), {
+          type: 'doughnut',
+          data: donutData(groupCount(filtered, 'Outcome')),
+          options: arcOptions({ cutout: '65%' })
+        });
+
+      } else {
+        host.innerHTML = '';
+      }
+    }
+
+    /* ============================================================
+       Quick Update — lightweight status/date/note logging.
+       Reuses saveReferralRecord, showToast, and normalizeDateForInput.
+       ============================================================ */
+
+    let currentQuickRecord = null;
+
+    function openQuickUpdate(record) {
+      currentQuickRecord = record;
+
+      // Set modal title to org name
+      document.getElementById('quickModalTitle').textContent = record['Organization'] || 'Quick Update';
+
+      // Pre-fill fields
+      document.getElementById('quickStatus').value = record['Status'] || 'New Opportunity';
+      document.getElementById('quickFollowUp').value = normalizeDateForInput('Follow-Up Date', record['Follow-Up Date']);
+      document.getElementById('quickLastContact').value = new Date().toISOString().slice(0, 10); // today
+      document.getElementById('quickNotes').value = '';
+
+      // Open modal
+      const modal = document.getElementById('quickModal');
+      modal.style.display = 'block';
+      requestAnimationFrame(() => modal.classList.add('open'));
+    }
+
+    function closeQuickUpdate() {
+      const modal = document.getElementById('quickModal');
+      modal.classList.remove('open');
+      setTimeout(() => { modal.style.display = 'none'; }, 200);
+    }
+
+    function saveQuickUpdate() {
+      if (!currentQuickRecord) return;
+
+      const newNote = document.getElementById('quickNotes').value.trim();
+      const timestamp = new Date().toLocaleString('en-US', {
+        month: 'numeric', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+
+      // Append note with timestamp if there is one
+      let updatedNotes = currentQuickRecord['Notes'] || '';
+      if (newNote) {
+        const entry = '[' + timestamp + '] ' + newNote;
+        updatedNotes = updatedNotes ? entry + '\n\n' + updatedNotes : entry;
+      }
+
+      // Build updated record — copy all existing fields, overwrite changed ones
+      const updatedRecord = Object.assign({}, currentQuickRecord, {
+        'Status': document.getElementById('quickStatus').value,
+        'Follow-Up Date': document.getElementById('quickFollowUp').value,
+        'Last Contact': document.getElementById('quickLastContact').value,
+        'Notes': updatedNotes
+      });
+
+      google.script.run
+        .withSuccessHandler(() => {
+          closeQuickUpdate();
+          loadData();
+          showToast('Record updated', 'success');
+        })
+        .withFailureHandler(err => {
+          showToast('Error: ' + (err.message || err), 'error');
+        })
+        .saveReferralRecord(updatedRecord);
     }
 
     /* ============================================================
@@ -1731,8 +2335,8 @@
       card.classList.remove('hl-a', 'hl-b');
     }
 
-    // Deletes whichever side the user chose ('incoming' or 'matched'),
-    // drops the card, and reloads data.
+    // Deletes whichever side the user chose ('incoming' or 'matched').
+    // Archiving to Deleted History happens server-side inside deleteFlaggedRecord.
     function confirmDelete(index, which) {
       const flag = dupFlags[index];
       if (!flag) return;
@@ -1771,6 +2375,192 @@
         return;
       }
       renderDupList();
+    }
+
+    /* ============================================================
+       Admin Settings — manage reminder email recipients.
+       Edits a local array; only persists on Save Changes.
+       ============================================================ */
+
+    let adminEmails = [];
+
+    // Opens the admin modal and loads the current recipient list from the backend.
+    function openAdminPanel() {
+      const modal = document.getElementById('adminModal');
+      modal.style.display = 'block';
+      requestAnimationFrame(() => modal.classList.add('open'));
+
+      document.getElementById('adminEmailInput').value = '';
+      document.getElementById('adminEmailList').innerHTML = '<div class="admin-empty">Loading…</div>';
+
+      google.script.run
+        .withSuccessHandler(emails => {
+          adminEmails = Array.isArray(emails) ? emails.slice() : [];
+          renderAdminList(adminEmails);
+        })
+        .withFailureHandler(err => {
+          showToast((err && err.message) ? err.message : 'Failed to load admin emails', 'error');
+          renderAdminList(adminEmails);
+        })
+        .getAdminEmails();
+    }
+
+    // Closes the admin modal with the shared fade-out animation.
+    function closeAdminPanel() {
+      const modal = document.getElementById('adminModal');
+      modal.classList.remove('open');
+      setTimeout(() => { modal.style.display = 'none'; }, 200);
+    }
+
+    // Renders the recipient list as removable pills (or muted empty text).
+    function renderAdminList(emails) {
+      const list = document.getElementById('adminEmailList');
+      if (!emails || !emails.length) {
+        list.innerHTML = '<div class="admin-empty">No admins configured yet</div>';
+        return;
+      }
+      list.innerHTML = emails.map(email => {
+        const safe = escapeHtml(email);
+        const arg = safe.replace(/'/g, "\\'");
+        return `<div class="admin-pill"><span>${safe}</span>` +
+               `<button type="button" title="Remove" onclick="removeAdminEmail('${arg}')">&times;</button></div>`;
+      }).join('');
+    }
+
+    // Validates and adds a new email to the local list (does not save yet).
+    function addAdminEmail() {
+      const input = document.getElementById('adminEmailInput');
+      const email = String(input.value || '').trim();
+
+      if (!isValidEmail(email)) {
+        showToast('Enter a valid email address', 'error');
+        return;
+      }
+      if (adminEmails.some(e => e.toLowerCase() === email.toLowerCase())) {
+        showToast('That email is already in the list', 'error');
+        input.value = '';
+        return;
+      }
+
+      adminEmails.push(email);
+      renderAdminList(adminEmails);
+      input.value = '';
+      input.focus();
+    }
+
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+    }
+
+    // Removes an email from the local list (does not save yet).
+    function removeAdminEmail(email) {
+      adminEmails = adminEmails.filter(e => e !== email);
+      renderAdminList(adminEmails);
+    }
+
+    // Persists the current local list to the backend, then closes + toasts.
+    function saveAdminEmails() {
+      google.script.run
+        .withSuccessHandler(() => {
+          closeAdminPanel();
+          showToast('Admin emails saved', 'success');
+        })
+        .withFailureHandler(err => {
+          showToast((err && err.message) ? err.message : 'Failed to save admin emails', 'error');
+        })
+        .setAdminEmails(adminEmails);
+    }
+
+    /* ============================================================
+       Deleted History — review and restore deleted records.
+       ============================================================ */
+
+    let deletedHistory = [];
+
+    // Opens the history modal and loads the archived deletions.
+    function openHistory() {
+      const modal = document.getElementById('historyModal');
+      modal.style.display = 'block';
+      requestAnimationFrame(() => modal.classList.add('open'));
+
+      document.getElementById('historyList').innerHTML = '<div class="hist-empty">Loading…</div>';
+      loadHistory();
+    }
+
+    // Closes the history modal with the shared fade-out animation.
+    function closeHistory() {
+      const modal = document.getElementById('historyModal');
+      modal.classList.remove('open');
+      setTimeout(() => { modal.style.display = 'none'; }, 200);
+    }
+
+    // Fetches the deleted-history list from the backend and renders it.
+    function loadHistory() {
+      google.script.run
+        .withSuccessHandler(rows => {
+          deletedHistory = Array.isArray(rows) ? rows : [];
+          renderHistory();
+        })
+        .withFailureHandler(err => {
+          document.getElementById('historyList').innerHTML =
+            '<div class="hist-empty">Could not load history.</div>';
+          showToast((err && err.message) ? err.message : 'Failed to load history', 'error');
+        })
+        .getDeletedHistory();
+    }
+
+    // Renders each deleted record with its metadata and a Restore button.
+    function renderHistory() {
+      const list = document.getElementById('historyList');
+      const subtitle = document.getElementById('historySubtitle');
+
+      subtitle.textContent = deletedHistory.length
+        ? deletedHistory.length + ' deleted record' + (deletedHistory.length === 1 ? '' : 's')
+        : 'No deleted records';
+
+      if (!deletedHistory.length) {
+        list.innerHTML = '<div class="hist-empty">Nothing has been deleted yet.</div>';
+        return;
+      }
+
+      list.innerHTML = deletedHistory.map((entry, index) => {
+        const org = escapeHtml(entry['Organization'] || 'Untitled');
+        const meta = [entry['Category'], entry['NJDPT Location']]
+          .filter(Boolean).map(escapeHtml).join(' · ');
+        const when = escapeHtml(entry['Deleted At'] || '');
+        const who = escapeHtml(entry['Deleted By'] || '');
+        const deletedLine = 'Deleted ' + when + (who ? ' by ' + who : '');
+        const sub = [meta, deletedLine].filter(Boolean).join(' — ');
+        const restored = String(entry['Status']).toLowerCase() === 'restored';
+        const right = restored
+          ? '<span class="hist-restored">Restored</span>'
+          : `<button type="button" class="btn-secondary" onclick="restoreHistory(${index})">Restore</button>`;
+        return `
+          <div class="hist-item">
+            <div class="hist-main">
+              <div class="hist-org">${org}</div>
+              <div class="hist-sub">${sub}</div>
+            </div>
+            <div class="hist-right">${right}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // Restores one deleted record back into the tracker, then refreshes both views.
+    function restoreHistory(index) {
+      const entry = deletedHistory[index];
+      if (!entry) return;
+
+      google.script.run
+        .withSuccessHandler(() => {
+          showToast('Record restored', 'success');
+          loadData();
+          loadHistory();
+        })
+        .withFailureHandler(err => {
+          showToast((err && err.message) ? err.message : 'Failed to restore record', 'error');
+        })
+        .restoreDeletedRecord(entry['History ID']);
     }
   </script>
 </body>
