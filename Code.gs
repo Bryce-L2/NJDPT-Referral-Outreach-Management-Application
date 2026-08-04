@@ -146,7 +146,6 @@ function deleteReferralRecord(id) {
     throw new Error('Record not found.');
   }
 
-  archiveRecordFromTracker_(id); // save a copy to Deleted History before removing
   sheet.deleteRow(row);
   return { success: true };
 }
