@@ -287,3 +287,165 @@ function runDedupOnSheet() {
 
   Logger.log('Dedup complete. Rows checked: ' + checkedCount + ', rows flagged: ' + flaggedRows.length);
 }
+
+/**
+ * Builds the normalized "smaller|larger" key for a pair of IDs so that a pair
+ * always has one canonical representation regardless of comparison direction.
+ */
+function pairKey_(id1, id2) {
+  const a = String(id1 || '');
+  const b = String(id2 || '');
+  return a <= b ? a + '|' + b : b + '|' + a;
+}
+
+/**
+ * Reads and parses the DISMISSED_PAIRS Script Property into an array of
+ * "id1|id2" keys. Returns [] if unset or malformed.
+ */
+function getDismissedPairs_() {
+  const raw = PropertiesService.getScriptProperties().getProperty('DISMISSED_PAIRS');
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * True if the given pair has been dismissed as "not a duplicate".
+ */
+function isPairDismissed_(id1, id2, dismissed) {
+  return dismissed.indexOf(pairKey_(id1, id2)) !== -1;
+}
+
+/**
+ * Read-only scan for the dashboard. Runs checkDuplicate across every row pair
+ * and returns an array of flag objects for LIKELY_DUPLICATE / REVIEW hits,
+ * skipping any pair the user has already dismissed. Never modifies the sheet.
+ */
+function getDuplicateFlags() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tracker = ss.getSheetByName(TRACKER_SHEET_NAME);
+  if (!tracker) {
+    return [];
+  }
+
+  const values = tracker.getDataRange().getValues();
+  if (values.length < 2) {
+    return [];
+  }
+
+  const headers = values[0];
+
+  // Build header-keyed record objects, skipping fully blank rows.
+  const records = [];
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    if (!row.some(value => String(value).trim() !== '')) {
+      continue;
+    }
+    const record = {};
+    for (let c = 0; c < headers.length; c++) {
+      record[headers[c]] = row[c];
+    }
+    records.push(record);
+  }
+
+  const dismissed = getDismissedPairs_();
+  const flags = [];
+
+  // Compare each record against the ones before it (each pair surfaces once).
+  for (let i = 0; i < records.length; i++) {
+    const priorRecords = records.slice(0, i);
+    const outcome = checkDuplicate(records[i], priorRecords);
+
+    if (outcome.result !== 'LIKELY_DUPLICATE' && outcome.result !== 'REVIEW') {
+      continue;
+    }
+
+    const incoming = records[i];
+    const matched = outcome.matchedRecord || {};
+    const incomingId = String(incoming['ID'] || '');
+    const matchedId = String(matched['ID'] || '');
+
+    // Skip pairs the user has already resolved as "not a duplicate".
+    if (isPairDismissed_(incomingId, matchedId, dismissed)) {
+      continue;
+    }
+
+    flags.push({
+      incomingId: incomingId,
+      incomingOrg: String(incoming[COL_ORGANIZATION] || ''),
+      incomingPhone: normalizePhone(incoming[COL_CONTACT_INFO]),
+      incomingDomain: normalizeDomain(incoming[COL_WEBSITE]),
+      matchedId: matchedId,
+      matchedOrg: String(matched[COL_ORGANIZATION] || ''),
+      matchedPhone: normalizePhone(matched[COL_CONTACT_INFO]),
+      matchedDomain: normalizeDomain(matched[COL_WEBSITE]),
+      reason: outcome.reason,
+      result: outcome.result
+    });
+  }
+
+  return flags;
+}
+
+/**
+ * Records a pair as "not a duplicate" by appending its normalized key to the
+ * DISMISSED_PAIRS Script Property (smaller ID first, deduplicated).
+ * Returns { success: true }.
+ */
+function dismissPair(id1, id2) {
+  const dismissed = getDismissedPairs_();
+  const key = pairKey_(id1, id2);
+
+  if (dismissed.indexOf(key) === -1) {
+    dismissed.push(key);
+    PropertiesService.getScriptProperties()
+      .setProperty('DISMISSED_PAIRS', JSON.stringify(dismissed));
+  }
+
+  return { success: true };
+}
+
+/**
+ * Deletes a single record from "Referral Tracker" by ID.
+ * Returns { success: true }.
+ */
+function deleteFlaggedRecord(id) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TRACKER_SHEET_NAME);
+  if (!sheet) {
+    throw new Error('Sheet "' + TRACKER_SHEET_NAME + '" not found.');
+  }
+
+  const row = findTrackerRowById_(sheet, id);
+  if (!row) {
+    throw new Error('Record not found.');
+  }
+
+  sheet.deleteRow(row);
+  return { success: true };
+}
+
+/**
+ * Finds the 1-based sheet row for a given ID in "Referral Tracker", or null.
+ * Replicates the findRowById_ pattern from Code.gs (kept local, not imported).
+ */
+function findTrackerRowById_(sheet, id) {
+  if (!id || sheet.getLastRow() < 2) {
+    return null;
+  }
+
+  const ids = sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, 1)
+    .getDisplayValues()
+    .flat();
+
+  const index = ids.findIndex(value => String(value) === String(id));
+  return index === -1 ? null : index + 2;
+}
