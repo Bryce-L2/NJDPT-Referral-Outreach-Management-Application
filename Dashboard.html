@@ -464,6 +464,19 @@
     }
     .btn-primary:hover { background: #1f4e78; }
 
+    /* Dedup-on-save warning banner (inline in the record form) */
+    .dedup-warning {
+      margin: 0 22px 14px;
+      background: #fef3c7;
+      border: 1px solid #c47d00;
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+    .dedup-warning-title { font-weight: 700; color: #92400e; font-size: 14px; }
+    .dedup-warning-reason { font-size: 13px; color: #7c5300; margin-top: 4px; }
+    .dedup-warning-match { font-size: 13px; color: #7c5300; margin-top: 2px; font-weight: 600; }
+    .dedup-warning-actions { display: flex; gap: 8px; margin-top: 12px; }
+
     @media (max-width: 980px) {
       .summary-grid { grid-template-columns: repeat(2, 1fr); }
       .toolbar { flex-wrap: wrap; }
@@ -480,7 +493,6 @@
        Flair / wow-factor enhancements (presentation-only)
        ============================================================ */
 
-    /* Entrance: sections rise + fade in on load */
     @keyframes riseIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
     .summary-grid .card { opacity: 0; animation: riseIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
@@ -491,7 +503,6 @@
     .toolbar { opacity: 0; animation: riseIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.3s forwards; }
     .table-wrap { opacity: 0; animation: riseIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.38s forwards; }
 
-    /* Interactive summary cards: smooth 3D tilt + lift + reactive icon */
     .card {
       transition: transform 0.16s ease, box-shadow 0.2s ease;
       transform-style: preserve-3d;
@@ -501,18 +512,14 @@
     .card-icon { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), color 0.25s ease; }
     .card:hover .card-icon { color: #1f4e78; transform: scale(1.14) rotate(-6deg); }
 
-    /* Header logo subtle pop on hover */
     .hdr-logo img { transition: transform 0.25s ease; }
     .hdr-logo:hover img { transform: scale(1.04); }
 
-    /* Add-button icon rotates in on hover */
     .btn-add svg { transition: transform 0.25s ease; }
     .btn-add:hover svg { transform: rotate(90deg); }
 
-    /* Search icon lights up when focused */
     .search-box:focus-within .search-icon { color: #163a5f; }
 
-    /* Staggered row entrance */
     @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     tbody tr { animation: rowIn 0.3s ease both; }
     tbody tr:nth-child(1) { animation-delay: 0.02s; }
@@ -524,21 +531,17 @@
     tbody tr:nth-child(7) { animation-delay: 0.20s; }
     tbody tr:nth-child(8) { animation-delay: 0.23s; }
 
-    /* Row hover: sliding navy accent + gentle badge lift */
     tbody tr td:first-child { box-shadow: inset 3px 0 0 transparent; transition: box-shadow 0.16s ease; }
     tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 #1f4e78; }
     .badge { transition: transform 0.15s ease; }
     tbody tr:hover .badge { transform: translateY(-1px); }
 
-    /* Action buttons: springy hover */
     .act-btn { transition: background 0.15s ease, transform 0.15s cubic-bezier(0.2, 0.8, 0.3, 1); }
     .act-btn:hover { transform: translateY(-2px) scale(1.08); }
 
-    /* Sticky header casts a shadow once the table scrolls */
     .table-wrap thead th { transition: box-shadow 0.2s ease; }
     .table-wrap.scrolled thead th { box-shadow: 0 8px 14px -8px rgba(16, 34, 56, 0.32); }
 
-    /* Click ripple on buttons */
     .btn-add, .btn-primary, .btn-secondary, .act-btn { position: relative; overflow: hidden; }
     .ripple {
       position: absolute;
@@ -549,7 +552,6 @@
     }
     @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
-    /* Toast notifications */
     #toast-stack {
       position: fixed;
       top: 86px;
@@ -589,20 +591,13 @@
       *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
     }
 
-    /* ============================================================
-       Clickable summary cards
-       ============================================================ */
     .card[role="button"] { cursor: pointer; }
     .card[role="button"]:focus-visible { outline: 3px solid rgba(31, 78, 120, 0.35); outline-offset: 2px; }
 
-    /* Table rows are clickable */
     tbody tr { cursor: pointer; }
 
-    /* ============================================================
-       Row detail modal (centered card)
-       ============================================================ */
+    /* Row detail modal */
     .modal-box-detail { max-width: 680px; }
-
     #detailBody.detail-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -611,20 +606,15 @@
       overflow: auto;
       margin: 0;
     }
-
     .detail-item { padding: 11px 2px; border-bottom: 1px solid #eef1f5; }
     .detail-item.full { grid-column: 1 / -1; }
     .detail-item dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7a8d; font-weight: 700; margin-bottom: 4px; }
     .detail-item dd { margin: 0; font-size: 14px; color: #1a2330; line-height: 1.5; word-break: break-word; }
     .detail-item .muted { color: #9aa8b8; }
 
-    /* ============================================================
-       Quick Update modal
-       ============================================================ */
+    /* Quick Update modal */
     .modal-box-quick { max-width: 500px; }
-
     .quick-grid { display: flex; flex-direction: column; gap: 16px; }
-
     .quick-field {
       display: flex;
       flex-direction: column;
@@ -648,23 +638,14 @@
       border-radius: 8px;
       padding: 11px 12px;
     }
-    .quick-field textarea {
-      min-height: 100px;
-      resize: vertical;
-      line-height: 1.5;
-    }
+    .quick-field textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
 
-    /* ============================================================
-       Breakdown modal (summary card click)
-       ============================================================ */
+    /* Breakdown modal */
     .modal-box-wide { max-width: 720px; }
     .bd-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.7); margin-bottom: 4px; }
     .modal-head h2 { line-height: 1.2; }
-
     .bd-count { font-size: 13px; color: #6b7a8d; font-weight: 600; margin-bottom: 12px; }
-
     .bd-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow: auto; }
-
     .bd-item {
       display: flex;
       align-items: center;
@@ -683,7 +664,6 @@
     .bd-item-sub { font-size: 12px; color: #6b7a8d; margin-top: 2px; }
     .bd-item-right { flex: none; display: flex; align-items: center; gap: 10px; }
     .bd-arrow { color: #9aa8b8; width: 16px; height: 16px; }
-
     .bd-empty { padding: 30px 10px; text-align: center; color: #6b7a8d; font-weight: 600; }
 
     /* Breakdown charts + urgency pills */
@@ -694,7 +674,6 @@
     .bd-chart { flex: 1; min-width: 0; }
     .bd-chart-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7a8d; font-weight: 700; margin: 0 0 8px; text-align: center; }
     .bd-canvas-wrap { position: relative; width: 100%; }
-
     .bd-pills { display: flex; gap: 10px; margin-bottom: 16px; }
     .bd-pill { flex: 1; border-radius: 8px; padding: 14px 12px; text-align: center; border: 1px solid; }
     .bd-pill-num { font-size: 24px; font-weight: 700; line-height: 1; }
@@ -709,199 +688,45 @@
       .bd-pills { flex-wrap: wrap; }
     }
 
-    /* ============================================================
-       Duplicate Alert modal (dedup) — additive, matches system
-       ============================================================ */
-    .dup-subtitle {
-      margin: 3px 0 0;
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.7);
-      font-weight: 400;
-    }
-
-    .dup-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-height: 60vh;
-      overflow: auto;
-    }
-
-    .dup-card {
-      background: #ffffff;
-      border: 1px solid #d0dae6;
-      border-radius: 8px;
-      padding: 14px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    }
+    /* Duplicate Alert modal (dedup, page-load) */
+    .dup-subtitle { margin: 3px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.7); font-weight: 400; }
+    .dup-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow: auto; }
+    .dup-card { background: #ffffff; border: 1px solid #d0dae6; border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
     .dup-card.likely { border-left: 4px solid #b91c1c; }
     .dup-card.review { border-left: 4px solid #c47d00; }
-
-    .dup-compare {
-      display: flex;
-      align-items: stretch;
-      gap: 14px;
-    }
+    .dup-compare { display: flex; align-items: stretch; gap: 14px; }
     .dup-side { flex: 1; min-width: 0; border-radius: 6px; transition: background 0.12s ease, box-shadow 0.12s ease; }
-    .dup-org {
-      font-weight: 700;
-      font-size: 14px;
-      color: #163a5f;
-      word-break: break-word;
-    }
-    .dup-meta {
-      font-size: 12px;
-      color: #6b7a8d;
-      margin-top: 2px;
-      word-break: break-word;
-    }
-    .dup-vs {
-      align-self: center;
-      flex: none;
-      font-size: 11px;
-      font-weight: 700;
-      color: #9aa8b8;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+    .dup-org { font-weight: 700; font-size: 14px; color: #163a5f; word-break: break-word; }
+    .dup-meta { font-size: 12px; color: #6b7a8d; margin-top: 2px; word-break: break-word; }
+    .dup-vs { align-self: center; flex: none; font-size: 11px; font-weight: 700; color: #9aa8b8; text-transform: uppercase; letter-spacing: 0.05em; }
     .dup-reason { margin-top: 10px; }
     .badge.badge-amber { background: #fef3c7; color: #92400e; }
-
-    .dup-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-
-    .btn-danger {
-      background: #b91c1c;
-      color: #ffffff;
-      border: 0;
-      border-radius: 8px;
-      padding: 9px 18px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
+    .dup-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .btn-danger { background: #b91c1c; color: #ffffff; border: 0; border-radius: 8px; padding: 9px 18px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn-danger:hover { background: #991b1b; }
-
-    /* Per-side labels + delete-choice buttons */
-    .dup-tag {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #6b7a8d;
-      background: #f0f4f8;
-      border: 1px solid #d0dae6;
-      border-radius: 999px;
-      padding: 1px 8px;
-      margin-bottom: 5px;
-    }
-
-    /* Highlight the side that the hovered/focused delete button will remove */
-    .dup-card.hl-a .dup-side-a,
-    .dup-card.hl-b .dup-side-b {
-      background: #fef2f2;
-      box-shadow: 0 0 0 2px #b91c1c;
-    }
-    .dup-card.hl-a .dup-side-a .dup-tag,
-    .dup-card.hl-b .dup-side-b .dup-tag {
-      background: #b91c1c;
-      border-color: #b91c1c;
-      color: #ffffff;
-    }
-
-    .dup-del-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      text-align: left;
-      line-height: 1.25;
-      max-width: 100%;
-    }
+    .dup-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7a8d; background: #f0f4f8; border: 1px solid #d0dae6; border-radius: 999px; padding: 1px 8px; margin-bottom: 5px; }
+    .dup-card.hl-a .dup-side-a, .dup-card.hl-b .dup-side-b { background: #fef2f2; box-shadow: 0 0 0 2px #b91c1c; }
+    .dup-card.hl-a .dup-side-a .dup-tag, .dup-card.hl-b .dup-side-b .dup-tag { background: #b91c1c; border-color: #b91c1c; color: #ffffff; }
+    .dup-del-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; line-height: 1.25; max-width: 100%; }
     .dup-del-title { font-weight: 700; }
-    .dup-del-sub {
-      font-size: 11px;
-      font-weight: 500;
-      opacity: 0.88;
-      white-space: normal;
-      word-break: break-word;
-    }
+    .dup-del-sub { font-size: 11px; font-weight: 500; opacity: 0.88; white-space: normal; word-break: break-word; }
+    .dup-confirm { width: 100%; background: #fef2f2; border: 1px solid #f4c9c9; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7f1d1d; font-weight: 600; }
+    .dup-confirm-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
-    .dup-confirm {
-      width: 100%;
-      background: #fef2f2;
-      border: 1px solid #f4c9c9;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 13px;
-      color: #7f1d1d;
-      font-weight: 600;
-    }
-    .dup-confirm-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-
-    /* ============================================================
-       Admin Settings modal
-       ============================================================ */
+    /* Admin Settings modal */
     .admin-section { margin-bottom: 18px; }
     .admin-section:last-child { margin-bottom: 0; }
-    .admin-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #163a5f;
-      font-weight: 700;
-      margin: 0 0 8px;
-    }
+    .admin-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #163a5f; font-weight: 700; margin: 0 0 8px; }
     .admin-empty { color: #9aa8b8; font-size: 13px; }
     .admin-add-row { display: flex; gap: 8px; }
     .admin-add-row input { flex: 1; }
-
-    .admin-pill {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f0f4f8;
-      border: 1px solid #d0dae6;
-      border-radius: 6px;
-      padding: 8px 12px;
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-    .admin-pill button {
-      background: none;
-      border: none;
-      color: #b91c1c;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 0 4px;
-      line-height: 1;
-    }
+    .admin-pill { display: flex; align-items: center; justify-content: space-between; background: #f0f4f8; border: 1px solid #d0dae6; border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 6px; }
+    .admin-pill button { background: none; border: none; color: #b91c1c; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; }
     .admin-pill button:hover { color: #991b1b; }
 
-    /* ============================================================
-       Deleted History modal
-       ============================================================ */
+    /* Deleted History modal */
     .hist-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow: auto; }
-    .hist-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 14px;
-      border: 1px solid #e3e9f1;
-      border-radius: 8px;
-      background: #fafcfe;
-    }
+    .hist-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid #e3e9f1; border-radius: 8px; background: #fafcfe; }
     .hist-main { min-width: 0; }
     .hist-org { font-weight: 700; color: #163a5f; font-size: 14px; word-break: break-word; }
     .hist-sub { font-size: 12px; color: #6b7a8d; margin-top: 2px; word-break: break-word; }
@@ -1212,7 +1037,7 @@
     </div>
   </div>
 
-  <!-- Row detail modal (centered card) -->
+  <!-- Row detail modal -->
   <div id="detailModal" class="modal" onclick="if(event.target===this) closeDetail()">
     <div class="modal-box modal-box-detail">
       <div class="modal-head">
@@ -1250,7 +1075,7 @@
     </div>
   </div>
 
-  <!-- Duplicate Alert modal (dedup) -->
+  <!-- Duplicate Alert modal (page-load dedup) -->
   <div id="dupModal" class="modal" onclick="if(event.target===this) closeDuplicateModal()">
     <div class="modal-box modal-box-wide">
       <div class="modal-head">
@@ -1315,7 +1140,6 @@
 
   <script>
     let records = [];
-    // Presentation-only: the records currently visible in the table, indexed for row clicks.
     let visibleRecords = [];
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1327,8 +1151,6 @@
       initUserContext();
     });
 
-    // Shows the admin-only header tools if the current user is a whitelisted admin.
-    // The admin list lives in Reminders.gs; the backend also enforces it on every call.
     function initUserContext() {
       google.script.run
         .withSuccessHandler(ctx => {
@@ -1337,7 +1159,7 @@
             if (tools) tools.style.display = 'flex';
           }
         })
-        .withFailureHandler(() => {}) // stay hidden on any error
+        .withFailureHandler(() => {})
         .getUserContext();
     }
 
@@ -1361,8 +1183,6 @@
       google.script.run
         .withSuccessHandler(summary => {
           animateCount(document.getElementById('total'), summary.total || 0);
-          // "Follow-Ups Due" counts every follow-up needed this week (overdue + next 7 days),
-          // computed from the loaded records so it matches the breakdown modal.
           animateCount(document.getElementById('due'), countFollowUpsThisWeek());
           animateCount(document.getElementById('successful'), summary.successfulConnections || 0);
           animateCount(document.getElementById('active'), summary.activeRelationships || 0);
@@ -1371,8 +1191,7 @@
         .getDashboardSummary();
     }
 
-    // Counts every follow-up needed this week: overdue plus anything due within
-    // the next 7 days. Drives the "Follow-Ups Due" summary card.
+    // Counts every follow-up needed this week: overdue + anything due in the next 7 days.
     function countFollowUpsThisWeek() {
       return records.filter(isDueThisWeek).length;
     }
@@ -1431,6 +1250,7 @@
     }
 
     function openForm(record = null) {
+      clearDedupWarning(); // never carry a duplicate warning over between opens
       document.getElementById('recordForm').reset();
       document.getElementById('ID').value = '';
       document.getElementById('formTitle').textContent = record ? 'Edit Opportunity' : 'Add Opportunity';
@@ -1459,26 +1279,80 @@
       openForm(record);
     }
 
+    // New records run through checkAndSaveRecord (dedup-on-save). Edits still save straight.
     function submitForm(event) {
       event.preventDefault();
 
       const formData = new FormData(document.getElementById('recordForm'));
       const record = {};
+      formData.forEach((value, key) => { record[key] = value; });
 
-      formData.forEach((value, key) => {
-        record[key] = value;
-      });
+      setMessage('Saving record...');
+
+      google.script.run
+        .withSuccessHandler(result => {
+          if (result && result.status === 'saved') {
+            setMessage('');
+            closeForm();
+            loadData();
+            showToast('Record saved', 'success');
+          } else if (result && result.status === 'duplicate') {
+            setMessage('');
+            showDedupWarning(result);
+          }
+        })
+        .withFailureHandler(showError)
+        .checkAndSaveRecord(record);
+    }
+
+    // Shows an inline amber warning above the Save button; the form stays open.
+    function showDedupWarning(result) {
+      clearDedupWarning();
+
+      const form = document.getElementById('recordForm');
+      const foot = form.querySelector('.modal-foot');
+
+      const banner = document.createElement('div');
+      banner.id = 'dedupWarning';
+      banner.className = 'dedup-warning';
+      banner.innerHTML =
+        '<div class="dedup-warning-title">Potential Duplicate Detected</div>'
+        + '<div class="dedup-warning-reason">' + escapeHtml(result.reason || '') + '</div>'
+        + '<div class="dedup-warning-match">Matched existing record: ' + escapeHtml(result.matchedOrg || '') + '</div>'
+        + '<div class="dedup-warning-actions">'
+        + '<button type="button" class="btn-primary" onclick="forceSaveRecord()">Save Anyway</button>'
+        + '<button type="button" class="btn-secondary" onclick="closeForm()">Cancel</button>'
+        + '</div>';
+
+      form.insertBefore(banner, foot);
+    }
+
+    // Saves despite the duplicate warning, bypassing the dedup check.
+    function forceSaveRecord() {
+      const formData = new FormData(document.getElementById('recordForm'));
+      const record = {};
+      formData.forEach((value, key) => { record[key] = value; });
 
       setMessage('Saving record...');
 
       google.script.run
         .withSuccessHandler(() => {
+          clearDedupWarning();
+          setMessage('');
           closeForm();
           loadData();
-          setMessage('Record saved.');
+          showToast('Record saved', 'success');
         })
-        .withFailureHandler(showError)
+        .withFailureHandler(err => {
+          showToast('Error: ' + ((err && err.message) ? err.message : err), 'error');
+        })
         .saveReferralRecord(record);
+    }
+
+    // Removes the inline duplicate warning banner if present.
+    function clearDedupWarning() {
+      const banner = document.getElementById('dedupWarning');
+      if (banner) banner.remove();
     }
 
     // Deletion is archived to Deleted History server-side (inside deleteReferralRecord).
@@ -1507,7 +1381,6 @@
 
     function websiteLink(url) {
       if (!url) return '';
-
       const safeUrl = escapeHtml(url);
       return `<a class="visit-link" href="${safeUrl}" target="_blank" rel="noopener noreferrer">Visit &rarr;</a>`;
     }
@@ -1521,8 +1394,6 @@
         .replaceAll("'", '&#039;');
     }
 
-    // Formats a US phone for display: 10 digits -> (201) 555-1234.
-    // 11 digits starting with 1 -> +1 (201) 555-1234. Otherwise returns the raw value.
     function formatPhone(value) {
       const digits = String(value ?? '').replace(/\D/g, '');
       if (digits.length === 10) {
@@ -1549,7 +1420,7 @@
       }
     };
 
-    /* ============ Added presentation-only helpers ============ */
+    /* ============ Helpers / icons ============ */
 
     const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
     const ICON_QUICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M3 4h13v7H3z"/><path d="M3 15h7"/><path d="M3 19h5"/></svg>';
@@ -1558,7 +1429,6 @@
     function statusBadge(value) {
       const clean = String(value ?? '').trim();
       if (!clean) return '';
-
       const styles = {
         'New Opportunity':     'background:#f1f3f5;color:#4a5568;',
         'Contacted':           'background:#dbeafe;color:#1e40af;',
@@ -1573,7 +1443,6 @@
     function valueBadge(value) {
       const clean = String(value ?? '').trim();
       if (!clean) return '';
-
       const styles = {
         'High':      'background:#d1fae5;color:#065f46;',
         'Medium':    'background:#fef3c7;color:#92400e;',
@@ -1584,28 +1453,12 @@
       return `<span class="badge" style="${style}">${escapeHtml(clean)}</span>`;
     }
 
-    function notesCell(notes) {
-      const value = String(notes ?? '').trim();
-      if (!value) return '';
-      if (value.length <= 55) return escapeHtml(value);
-
-      const truncated = escapeHtml(value.slice(0, 55).trimEnd());
-      const full = escapeHtml(value);
-      return `<span class="note-wrap" onclick="toggleNote(this)">` +
-               `<span class="note-short">${truncated}&hellip; <span class="note-more">more</span></span>` +
-               `<span class="note-full">${full}</span>` +
-             `</span>`;
-    }
-
-    function toggleNote(el) {
-      el.classList.toggle('expanded');
-    }
+    function toggleNote(el) { el.classList.toggle('expanded'); }
 
     function animateCount(el, target) {
       const value = Number(target) || 0;
       const duration = 900;
       const start = performance.now();
-
       function frame(now) {
         const progress = Math.min((now - start) / duration, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
@@ -1622,7 +1475,6 @@
           }
         }
       }
-
       requestAnimationFrame(frame);
     }
 
@@ -1631,17 +1483,13 @@
       let html = '';
       for (let r = 0; r < 6; r++) {
         html += '<tr>';
-        for (let c = 0; c < 7; c++) {
-          html += '<td><div class="skeleton"></div></td>';
-        }
+        for (let c = 0; c < 7; c++) { html += '<td><div class="skeleton"></div></td>'; }
         html += '</tr>';
       }
       body.innerHTML = html;
     }
 
-    /* ============================================================
-       Flair layer: interactivity that runs alongside the app.
-       ============================================================ */
+    /* ============ Toast + flair ============ */
 
     const TOAST_OK = '<svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
     const TOAST_ERR = '<svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>';
@@ -1653,12 +1501,10 @@
         stack.id = 'toast-stack';
         document.body.appendChild(stack);
       }
-
       const toast = document.createElement('div');
       toast.className = 'toast ' + (type === 'error' ? 'error' : 'success');
       toast.innerHTML = (type === 'error' ? TOAST_ERR : TOAST_OK) + '<span>' + escapeHtml(text) + '</span>';
       stack.appendChild(toast);
-
       requestAnimationFrame(() => toast.classList.add('show'));
       setTimeout(() => {
         toast.classList.remove('show');
@@ -1681,7 +1527,6 @@
       setTimeout(() => ripple.remove(), 600);
     }
 
-    // Second DOMContentLoaded listener — leaves the original one untouched.
     document.addEventListener('DOMContentLoaded', () => {
       document.addEventListener('click', event => {
         const button = event.target.closest('.btn-add, .btn-primary, .btn-secondary, .act-btn');
@@ -1732,10 +1577,7 @@
       });
     });
 
-    /* ============================================================
-       Detail drawer + summary-card breakdown (presentation-only).
-       Reads the already-loaded `records`; no backend calls.
-       ============================================================ */
+    /* ============ Detail drawer + breakdown ============ */
 
     const DETAIL_FIELDS = [
       { key: 'Category', label: 'Category' },
@@ -1762,11 +1604,9 @@
 
     function openDetail(record) {
       document.getElementById('detailTitle').textContent = record['Organization'] || 'Opportunity';
-
       document.getElementById('detailBody').innerHTML = DETAIL_FIELDS.map(field => {
         const raw = record[field.key];
         let display;
-
         if (field.key === 'Status') {
           display = raw ? statusBadge(raw) : '<span class="muted">&mdash;</span>';
         } else if (field.key === 'Relationship Value') {
@@ -1776,7 +1616,6 @@
         } else {
           display = raw ? escapeHtml(raw) : '<span class="muted">&mdash;</span>';
         }
-
         const fullClass = (field.key === 'Notes' || field.key === 'Outreach Opportunity') ? ' full' : '';
         return `<div class="detail-item${fullClass}"><dt>${escapeHtml(field.label)}</dt><dd>${display}</dd></div>`;
       }).join('');
@@ -1814,7 +1653,6 @@
       active:     { title: 'Active Relationships',    eyebrow: 'Status is an active relationship',         match: r => String(r['Status']).toLowerCase() === 'active relationship' }
     };
 
-    // Applies the per-modal sort order to the filtered subset.
     function sortBreakdownRecords(type, recs) {
       const list = recs.slice();
       if (type === 'total') {
@@ -1876,10 +1714,7 @@
       setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
-    /* ============================================================
-       Breakdown charts (Chart.js) — visual analytics on top of the
-       existing org lists. Reads only the in-memory `records` array.
-       ============================================================ */
+    /* ============ Breakdown charts (Chart.js) ============ */
 
     const CHART_COLORS = [
       '#163a5f', '#1f4e78', '#0a7c4e', '#c47d00', '#b91c1c',
@@ -1887,46 +1722,29 @@
     ];
     const CHART_FONT = "'Plus Jakarta Sans', 'Montserrat', sans-serif";
     const CHART_TOOLTIP = {
-      backgroundColor: '#ffffff',
-      borderColor: '#163a5f',
-      borderWidth: 1,
-      titleColor: '#163a5f',
-      bodyColor: '#1a2330',
-      titleFont: { family: CHART_FONT, weight: '700' },
-      bodyFont: { family: CHART_FONT },
-      padding: 10,
-      displayColors: false
+      backgroundColor: '#ffffff', borderColor: '#163a5f', borderWidth: 1,
+      titleColor: '#163a5f', bodyColor: '#1a2330',
+      titleFont: { family: CHART_FONT, weight: '700' }, bodyFont: { family: CHART_FONT },
+      padding: 10, displayColors: false
     };
     const LOCATIONS = ['Montville', 'Paramus', 'Riverdale', 'Wayne'];
 
-    // Chart instances — destroyed and recreated on every modal open.
-    let chartTotalCat = null;
-    let chartTotalLoc = null;
-    let chartDueLoc = null;
-    let chartSuccCat = null;
-    let chartSuccConn = null;
-    let chartActiveVal = null;
-    let chartActiveOut = null;
+    let chartTotalCat = null, chartTotalLoc = null, chartDueLoc = null,
+        chartSuccCat = null, chartSuccConn = null, chartActiveVal = null, chartActiveOut = null;
 
-    // Draws the centered total inside the Total-modal donut.
     const bdCenterTextPlugin = {
       id: 'bdCenterText',
       afterDraw(chart) {
         const opt = chart.options.plugins && chart.options.plugins.bdCenterText;
         if (!opt || opt.text == null) return;
-        const ctx = chart.ctx;
-        const area = chart.chartArea;
-        const cx = (area.left + area.right) / 2;
-        const cy = (area.top + area.bottom) / 2;
+        const ctx = chart.ctx, area = chart.chartArea;
+        const cx = (area.left + area.right) / 2, cy = (area.top + area.bottom) / 2;
         ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#163a5f';
-        ctx.font = '700 24px ' + CHART_FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#163a5f'; ctx.font = '700 24px ' + CHART_FONT;
         ctx.fillText(String(opt.text), cx, cy - 4);
         if (opt.label) {
-          ctx.fillStyle = '#6b7a8d';
-          ctx.font = '600 10px ' + CHART_FONT;
+          ctx.fillStyle = '#6b7a8d'; ctx.font = '600 10px ' + CHART_FONT;
           ctx.fillText(String(opt.label).toUpperCase(), cx, cy + 14);
         }
         ctx.restore();
@@ -1940,9 +1758,7 @@
       chartTotalCat = chartTotalLoc = chartDueLoc = chartSuccCat = chartSuccConn = chartActiveVal = chartActiveOut = null;
     }
 
-    // --- small data helpers ---
     function midnightToday() { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }
-
     function parseDateMidnight(value) {
       if (!value) return null;
       const d = new Date(value);
@@ -1950,11 +1766,7 @@
       d.setHours(0, 0, 0, 0);
       return d;
     }
-
-    function bdDateValue(value) {
-      const d = parseDateMidnight(value);
-      return d ? d.getTime() : Infinity;
-    }
+    function bdDateValue(value) { const d = parseDateMidnight(value); return d ? d.getTime() : Infinity; }
 
     function groupCount(recs, key) {
       const map = {};
@@ -1964,83 +1776,59 @@
       });
       return map;
     }
-
     function countByOrder(recs, key, order) {
       const map = groupCount(recs, key);
       return order.map(o => map[o] || 0);
     }
-
     function donutData(map) {
       const labels = Object.keys(map);
       const data = labels.map(l => map[l]);
       const colors = labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
       return { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] };
     }
-
-    // --- shared option builders ---
     function arcOptions(opts) {
       opts = opts || {};
-      const o = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP }
-      };
+      const o = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP } };
       if (opts.cutout) o.cutout = opts.cutout;
       if (opts.centerText) o.plugins.bdCenterText = opts.centerText;
       return o;
     }
-
     function barOptions(indexAxis) {
       const valueAxis = { grid: { color: '#eef1f5' }, ticks: { color: '#6b7a8d', precision: 0 }, beginAtZero: true };
       const catAxis = { grid: { display: false }, ticks: { color: '#6b7a8d' } };
       return {
-        indexAxis: indexAxis,
-        responsive: true,
-        maintainAspectRatio: false,
+        indexAxis: indexAxis, responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: CHART_TOOLTIP },
-        scales: indexAxis === 'y'
-          ? { x: valueAxis, y: catAxis }
-          : { x: catAxis, y: valueAxis }
+        scales: indexAxis === 'y' ? { x: valueAxis, y: catAxis } : { x: catAxis, y: valueAxis }
       };
     }
-
     function bdEl(id) { return document.getElementById(id); }
-
     function bdCanvas(id, height, title) {
       return '<div class="bd-chart">'
         + (title ? '<div class="bd-chart-title">' + title + '</div>' : '')
         + '<div class="bd-canvas-wrap" style="height:' + height + 'px;"><canvas id="' + id + '"></canvas></div>'
         + '</div>';
     }
-
     function bdPill(label, count, color) {
-      return '<div class="bd-pill bd-pill-' + color + '">'
-        + '<div class="bd-pill-num">' + count + '</div>'
-        + '<div class="bd-pill-label">' + label + '</div>'
-        + '</div>';
+      return '<div class="bd-pill bd-pill-' + color + '"><div class="bd-pill-num">' + count + '</div><div class="bd-pill-label">' + label + '</div></div>';
     }
 
-    // Builds the charts for whichever breakdown modal just opened.
     function renderBreakdownCharts(type, filtered) {
       const host = document.getElementById('bdCharts');
       if (!host) return;
-
       destroyBreakdownCharts();
-
-      if (!window.Chart) { host.innerHTML = ''; return; } // charts unavailable; list still shows
+      if (!window.Chart) { host.innerHTML = ''; return; }
 
       if (type === 'total') {
         host.innerHTML = '<div class="bd-charts-row">'
           + bdCanvas('bdCanvasTotalCat', 200, 'By Category')
           + bdCanvas('bdCanvasTotalLoc', 200, 'By Location')
           + '</div>';
-
         chartTotalCat = new Chart(bdEl('bdCanvasTotalCat'), {
           type: 'doughnut',
           data: donutData(groupCount(records, 'Category')),
           options: arcOptions({ cutout: '65%', centerText: { text: records.length, label: 'Total' } })
         });
-
         chartTotalLoc = new Chart(bdEl('bdCanvasTotalLoc'), {
           type: 'bar',
           data: { labels: LOCATIONS, datasets: [{ data: countByOrder(records, 'NJDPT Location', LOCATIONS), backgroundColor: '#163a5f', borderRadius: 4 }] },
@@ -2052,7 +1840,6 @@
         const weekEnd = new Date(today);
         weekEnd.setDate(weekEnd.getDate() + 7);
 
-        // Totals for the pills + per-office urgency buckets for the stacked bars.
         let overdue = 0, dueToday = 0, dueWeek = 0;
         const locOver = {}, locToday = {}, locWeek = {};
         LOCATIONS.forEach(l => { locOver[l] = 0; locToday[l] = 0; locWeek[l] = 0; });
@@ -2062,16 +1849,9 @@
           if (!d) return;
           const loc = String(r['NJDPT Location'] || '').trim();
           const known = LOCATIONS.indexOf(loc) !== -1;
-          if (d < today) {
-            overdue++;
-            if (known) locOver[loc]++;
-          } else if (d.getTime() === today.getTime()) {
-            dueToday++;
-            if (known) locToday[loc]++;
-          } else if (d <= weekEnd) {
-            dueWeek++;
-            if (known) locWeek[loc]++;
-          }
+          if (d < today) { overdue++; if (known) locOver[loc]++; }
+          else if (d.getTime() === today.getTime()) { dueToday++; if (known) locToday[loc]++; }
+          else if (d <= weekEnd) { dueWeek++; if (known) locWeek[loc]++; }
         });
 
         host.innerHTML = '<div class="bd-pills">'
@@ -2081,8 +1861,6 @@
           + '</div>'
           + bdCanvas('bdCanvasDueLoc', 200, 'Follow-ups by office & urgency');
 
-        // Cap the value axis a bit above the busiest office so short bars
-        // don't stretch all the way across the box.
         const totals = LOCATIONS.map(l => locWeek[l] + locToday[l] + locOver[l]);
         const maxTotal = Math.max(0, ...totals);
         const axisMax = Math.max(5, maxTotal + Math.max(2, Math.ceil(maxTotal * 0.3)));
@@ -2098,15 +1876,9 @@
             ]
           },
           options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
             plugins: {
-              legend: {
-                display: true,
-                position: 'bottom',
-                labels: { boxWidth: 10, boxHeight: 10, color: '#6b7a8d', font: { family: CHART_FONT, size: 11 } }
-              },
+              legend: { display: true, position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, color: '#6b7a8d', font: { family: CHART_FONT, size: 11 } } },
               tooltip: CHART_TOOLTIP
             },
             scales: {
@@ -2121,21 +1893,13 @@
           + bdCanvas('bdCanvasSuccCat', 200, 'Successful by Category')
           + bdCanvas('bdCanvasSuccConn', 200, 'Connection Status (all)')
           + '</div>';
-
-        chartSuccCat = new Chart(bdEl('bdCanvasSuccCat'), {
-          type: 'pie',
-          data: donutData(groupCount(filtered, 'Category')),
-          options: arcOptions({})
-        });
+        chartSuccCat = new Chart(bdEl('bdCanvasSuccCat'), { type: 'pie', data: donutData(groupCount(filtered, 'Category')), options: arcOptions({}) });
 
         let yes = 0, no = 0, pending = 0;
         records.forEach(r => {
           const v = String(r['Connection Successful'] || '').trim().toLowerCase();
-          if (v === 'yes') yes++;
-          else if (v === 'no') no++;
-          else pending++;
+          if (v === 'yes') yes++; else if (v === 'no') no++; else pending++;
         });
-
         chartSuccConn = new Chart(bdEl('bdCanvasSuccConn'), {
           type: 'doughnut',
           data: { labels: ['Yes', 'No', 'Pending'], datasets: [{ data: [yes, no, pending], backgroundColor: ['#0a7c4e', '#b91c1c', '#6b7a8d'], borderWidth: 2, borderColor: '#ffffff' }] },
@@ -2147,41 +1911,30 @@
           + bdCanvas('bdCanvasActiveVal', 200, 'By Relationship Value')
           + bdCanvas('bdCanvasActiveOut', 200, 'By Outcome')
           + '</div>';
-
         const RV = ['High', 'Medium', 'Low', 'Potential'];
         chartActiveVal = new Chart(bdEl('bdCanvasActiveVal'), {
           type: 'bar',
           data: { labels: RV, datasets: [{ data: countByOrder(filtered, 'Relationship Value', RV), backgroundColor: ['#0a7c4e', '#c47d00', '#6b7a8d', '#6b7a8d'], borderRadius: 4 }] },
           options: barOptions('y')
         });
-
-        chartActiveOut = new Chart(bdEl('bdCanvasActiveOut'), {
-          type: 'doughnut',
-          data: donutData(groupCount(filtered, 'Outcome')),
-          options: arcOptions({ cutout: '65%' })
-        });
+        chartActiveOut = new Chart(bdEl('bdCanvasActiveOut'), { type: 'doughnut', data: donutData(groupCount(filtered, 'Outcome')), options: arcOptions({ cutout: '65%' }) });
 
       } else {
         host.innerHTML = '';
       }
     }
 
-    /* ============================================================
-       Quick Update — lightweight status/date/note logging.
-       ============================================================ */
+    /* ============ Quick Update ============ */
 
     let currentQuickRecord = null;
 
     function openQuickUpdate(record) {
       currentQuickRecord = record;
-
       document.getElementById('quickModalTitle').textContent = record['Organization'] || 'Quick Update';
-
       document.getElementById('quickStatus').value = record['Status'] || 'New Opportunity';
       document.getElementById('quickFollowUp').value = normalizeDateForInput('Follow-Up Date', record['Follow-Up Date']);
       document.getElementById('quickLastContact').value = new Date().toISOString().slice(0, 10);
       document.getElementById('quickNotes').value = '';
-
       const modal = document.getElementById('quickModal');
       modal.style.display = 'block';
       requestAnimationFrame(() => modal.classList.add('open'));
@@ -2195,41 +1948,33 @@
 
     function saveQuickUpdate() {
       if (!currentQuickRecord) return;
-
       const newNote = document.getElementById('quickNotes').value.trim();
       const timestamp = new Date().toLocaleString('en-US', {
         month: 'numeric', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit', hour12: true
       });
-
       let updatedNotes = currentQuickRecord['Notes'] || '';
       if (newNote) {
         const entry = '[' + timestamp + '] ' + newNote;
         updatedNotes = updatedNotes ? entry + '\n\n' + updatedNotes : entry;
       }
-
       const updatedRecord = Object.assign({}, currentQuickRecord, {
         'Status': document.getElementById('quickStatus').value,
         'Follow-Up Date': document.getElementById('quickFollowUp').value,
         'Last Contact': document.getElementById('quickLastContact').value,
         'Notes': updatedNotes
       });
-
       google.script.run
         .withSuccessHandler(() => {
           closeQuickUpdate();
           loadData();
           showToast('Record updated', 'success');
         })
-        .withFailureHandler(err => {
-          showToast('Error: ' + (err.message || err), 'error');
-        })
+        .withFailureHandler(err => { showToast('Error: ' + (err.message || err), 'error'); })
         .saveReferralRecord(updatedRecord);
     }
 
-    /* ============================================================
-       Duplicate detection (dedup) — additive.
-       ============================================================ */
+    /* ============ Page-load duplicate scan ============ */
 
     let dupFlags = [];
 
@@ -2246,15 +1991,11 @@
     function openDuplicateModal(flags) {
       dupFlags = Array.isArray(flags) ? flags.slice() : [];
       renderDupList();
-
       const modal = document.getElementById('dupModal');
       const alreadyOpen = modal.classList.contains('open');
       modal.style.display = 'block';
-      if (alreadyOpen) {
-        modal.classList.add('open');
-      } else {
-        requestAnimationFrame(() => modal.classList.add('open'));
-      }
+      if (alreadyOpen) { modal.classList.add('open'); }
+      else { requestAnimationFrame(() => modal.classList.add('open')); }
     }
 
     function closeDuplicateModal() {
@@ -2266,10 +2007,7 @@
     function renderDupList() {
       const list = document.getElementById('dupList');
       const subtitle = document.getElementById('dupSubtitle');
-
-      subtitle.textContent = dupFlags.length + ' potential duplicate'
-        + (dupFlags.length === 1 ? '' : 's') + ' found';
-
+      subtitle.textContent = dupFlags.length + ' potential duplicate' + (dupFlags.length === 1 ? '' : 's') + ' found';
       list.innerHTML = dupFlags.map((flag, index) => {
         const cls = flag.result === 'LIKELY_DUPLICATE' ? 'likely' : 'review';
         return `
@@ -2301,15 +2039,12 @@
     function startDeleteConfirm(index) {
       const flag = dupFlags[index];
       if (!flag) return;
-
       const card = document.querySelector('.dup-card[data-index="' + index + '"]');
       if (!card) return;
-
       const aName = escapeHtml(flag.incomingOrg) || 'Untitled';
       const bName = escapeHtml(flag.matchedOrg) || 'Untitled';
       const aWho = escapeHtml(dupContactText(flag.incomingPhone, flag.incomingDomain));
       const bWho = escapeHtml(dupContactText(flag.matchedPhone, flag.matchedDomain));
-
       const actions = card.querySelector('[data-role="actions"]');
       actions.innerHTML = `
         <div class="dup-confirm">
@@ -2358,14 +2093,9 @@
     function confirmDelete(index, which) {
       const flag = dupFlags[index];
       if (!flag) return;
-
       const id = which === 'matched' ? flag.matchedId : flag.incomingId;
-
       google.script.run
-        .withSuccessHandler(() => {
-          removeDupPair(index);
-          loadData();
-        })
+        .withSuccessHandler(() => { removeDupPair(index); loadData(); })
         .withFailureHandler(showError)
         .deleteFlaggedRecord(id);
     }
@@ -2373,7 +2103,6 @@
     function notDuplicate(index) {
       const flag = dupFlags[index];
       if (!flag) return;
-
       google.script.run
         .withSuccessHandler(() => {
           removeDupPair(index);
@@ -2393,9 +2122,7 @@
       renderDupList();
     }
 
-    /* ============================================================
-       Admin Settings — manage reminder email recipients.
-       ============================================================ */
+    /* ============ Admin Settings ============ */
 
     let adminEmails = [];
 
@@ -2403,10 +2130,8 @@
       const modal = document.getElementById('adminModal');
       modal.style.display = 'block';
       requestAnimationFrame(() => modal.classList.add('open'));
-
       document.getElementById('adminEmailInput').value = '';
       document.getElementById('adminEmailList').innerHTML = '<div class="admin-empty">Loading…</div>';
-
       google.script.run
         .withSuccessHandler(emails => {
           adminEmails = Array.isArray(emails) ? emails.slice() : [];
@@ -2434,34 +2159,26 @@
       list.innerHTML = emails.map(email => {
         const safe = escapeHtml(email);
         const arg = safe.replace(/'/g, "\\'");
-        return `<div class="admin-pill"><span>${safe}</span>` +
-               `<button type="button" title="Remove" onclick="removeAdminEmail('${arg}')">&times;</button></div>`;
+        return `<div class="admin-pill"><span>${safe}</span><button type="button" title="Remove" onclick="removeAdminEmail('${arg}')">&times;</button></div>`;
       }).join('');
     }
 
     function addAdminEmail() {
       const input = document.getElementById('adminEmailInput');
       const email = String(input.value || '').trim();
-
-      if (!isValidEmail(email)) {
-        showToast('Enter a valid email address', 'error');
-        return;
-      }
+      if (!isValidEmail(email)) { showToast('Enter a valid email address', 'error'); return; }
       if (adminEmails.some(e => e.toLowerCase() === email.toLowerCase())) {
         showToast('That email is already in the list', 'error');
         input.value = '';
         return;
       }
-
       adminEmails.push(email);
       renderAdminList(adminEmails);
       input.value = '';
       input.focus();
     }
 
-    function isValidEmail(value) {
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-    }
+    function isValidEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
 
     function removeAdminEmail(email) {
       adminEmails = adminEmails.filter(e => e !== email);
@@ -2470,19 +2187,12 @@
 
     function saveAdminEmails() {
       google.script.run
-        .withSuccessHandler(() => {
-          closeAdminPanel();
-          showToast('Admin emails saved', 'success');
-        })
-        .withFailureHandler(err => {
-          showToast((err && err.message) ? err.message : 'Failed to save admin emails', 'error');
-        })
+        .withSuccessHandler(() => { closeAdminPanel(); showToast('Admin emails saved', 'success'); })
+        .withFailureHandler(err => { showToast((err && err.message) ? err.message : 'Failed to save admin emails', 'error'); })
         .setAdminEmails(adminEmails);
     }
 
-    /* ============================================================
-       Deleted History — review and restore deleted records.
-       ============================================================ */
+    /* ============ Deleted History ============ */
 
     let deletedHistory = [];
 
@@ -2490,7 +2200,6 @@
       const modal = document.getElementById('historyModal');
       modal.style.display = 'block';
       requestAnimationFrame(() => modal.classList.add('open'));
-
       document.getElementById('historyList').innerHTML = '<div class="hist-empty">Loading…</div>';
       loadHistory();
     }
@@ -2503,13 +2212,9 @@
 
     function loadHistory() {
       google.script.run
-        .withSuccessHandler(rows => {
-          deletedHistory = Array.isArray(rows) ? rows : [];
-          renderHistory();
-        })
+        .withSuccessHandler(rows => { deletedHistory = Array.isArray(rows) ? rows : []; renderHistory(); })
         .withFailureHandler(err => {
-          document.getElementById('historyList').innerHTML =
-            '<div class="hist-empty">Could not load history.</div>';
+          document.getElementById('historyList').innerHTML = '<div class="hist-empty">Could not load history.</div>';
           showToast((err && err.message) ? err.message : 'Failed to load history', 'error');
         })
         .getDeletedHistory();
@@ -2518,20 +2223,16 @@
     function renderHistory() {
       const list = document.getElementById('historyList');
       const subtitle = document.getElementById('historySubtitle');
-
       subtitle.textContent = deletedHistory.length
         ? deletedHistory.length + ' deleted record' + (deletedHistory.length === 1 ? '' : 's')
         : 'No deleted records';
-
       if (!deletedHistory.length) {
         list.innerHTML = '<div class="hist-empty">Nothing has been deleted yet.</div>';
         return;
       }
-
       list.innerHTML = deletedHistory.map((entry, index) => {
         const org = escapeHtml(entry['Organization'] || 'Untitled');
-        const meta = [entry['Category'], entry['NJDPT Location']]
-          .filter(Boolean).map(escapeHtml).join(' · ');
+        const meta = [entry['Category'], entry['NJDPT Location']].filter(Boolean).map(escapeHtml).join(' · ');
         const when = escapeHtml(entry['Deleted At'] || '');
         const who = escapeHtml(entry['Deleted By'] || '');
         const deletedLine = 'Deleted ' + when + (who ? ' by ' + who : '');
@@ -2554,16 +2255,9 @@
     function restoreHistory(index) {
       const entry = deletedHistory[index];
       if (!entry) return;
-
       google.script.run
-        .withSuccessHandler(() => {
-          showToast('Record restored', 'success');
-          loadData();
-          loadHistory();
-        })
-        .withFailureHandler(err => {
-          showToast((err && err.message) ? err.message : 'Failed to restore record', 'error');
-        })
+        .withSuccessHandler(() => { showToast('Record restored', 'success'); loadData(); loadHistory(); })
+        .withFailureHandler(err => { showToast((err && err.message) ? err.message : 'Failed to restore record', 'error'); })
         .restoreDeletedRecord(entry['History ID']);
     }
   </script>
