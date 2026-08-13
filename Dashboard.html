@@ -486,7 +486,7 @@
     }
 
     @media (max-width: 640px) {
-      .hdr-btn-label { display: none; } /* icon-only admin button on small screens */
+      .hdr-btn-label { display: none; }
     }
 
     /* ============================================================
@@ -713,7 +713,7 @@
     .dup-confirm { width: 100%; background: #fef2f2; border: 1px solid #f4c9c9; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7f1d1d; font-weight: 600; }
     .dup-confirm-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
-    /* Admin Settings modal */
+    /* Admin CSS (unused now — harmless) */
     .admin-section { margin-bottom: 18px; }
     .admin-section:last-child { margin-bottom: 0; }
     .admin-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #163a5f; font-weight: 700; margin: 0 0 8px; }
@@ -752,14 +752,7 @@
       <h1>Community &amp; Referral Relationship Finder</h1>
       <p>Public-source outreach opportunities and relationship tracking</p>
     </div>
-    <div class="hdr-right">
-      <div id="adminTools" class="hdr-tools" style="display:none;">
-        <button class="hdr-btn" title="Admin Settings" onclick="openAdminPanel()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span class="hdr-btn-label">Admin</span>
-        </button>
-      </div>
-    </div>
+    <div class="hdr-right"></div>
   </header>
 
   <main>
@@ -1091,37 +1084,6 @@
     </div>
   </div>
 
-  <!-- Admin Settings modal -->
-  <div id="adminModal" class="modal" onclick="if(event.target===this) closeAdminPanel()">
-    <div class="modal-box modal-box-detail">
-      <div class="modal-head">
-        <div>
-          <h2>Admin Settings</h2>
-          <p class="dup-subtitle">Manage reminder email recipients</p>
-        </div>
-        <button type="button" class="modal-x" onclick="closeAdminPanel()" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="admin-section">
-          <div class="admin-label">Reminder Recipients</div>
-          <div id="adminEmailList"></div>
-        </div>
-        <div class="admin-section">
-          <div class="admin-label">Add New Admin</div>
-          <div class="admin-add-row">
-            <input id="adminEmailInput" type="email" placeholder="Enter email address"
-                   onkeydown="if(event.key==='Enter'){event.preventDefault();addAdminEmail();}">
-            <button type="button" class="btn-primary" onclick="addAdminEmail()">Add</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn-secondary" onclick="closeAdminPanel()">Cancel</button>
-        <button type="button" class="btn-primary" onclick="saveAdminEmails()">Save Changes</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Deleted History modal -->
   <div id="historyModal" class="modal" onclick="if(event.target===this) closeHistory()">
     <div class="modal-box modal-box-wide">
@@ -1148,20 +1110,7 @@
       document.getElementById('categoryFilter').addEventListener('change', renderTable);
       document.getElementById('statusFilter').addEventListener('change', renderTable);
       loadData();
-      initUserContext();
     });
-
-    function initUserContext() {
-      google.script.run
-        .withSuccessHandler(ctx => {
-          if (ctx && ctx.isAdmin) {
-            const tools = document.getElementById('adminTools');
-            if (tools) tools.style.display = 'flex';
-          }
-        })
-        .withFailureHandler(() => {})
-        .getUserContext();
-    }
 
     function loadData() {
       setMessage('Loading records...');
@@ -1394,15 +1343,14 @@
         .replaceAll("'", '&#039;');
     }
 
-    function formatPhone(value) {
-      const digits = String(value ?? '').replace(/\D/g, '');
+        // Formats a 10-digit phone as (973) 248-8111. Anything that isn't exactly 10 digits
+    // after stripping non-digits (e.g. an email address) is returned unchanged.
+    function formatPhone(phone) {
+      const digits = String(phone ?? '').replace(/\D/g, '');
       if (digits.length === 10) {
         return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
       }
-      if (digits.length === 11 && digits.charAt(0) === '1') {
-        return '+1 (' + digits.slice(1, 4) + ') ' + digits.slice(4, 7) + '-' + digits.slice(7);
-      }
-      return String(value ?? '');
+      return String(phone ?? '');
     }
 
     function setMessage(message) {
@@ -1611,6 +1559,8 @@
           display = raw ? statusBadge(raw) : '<span class="muted">&mdash;</span>';
         } else if (field.key === 'Relationship Value') {
           display = raw ? valueBadge(raw) : '<span class="muted">&mdash;</span>';
+        } else if (field.key === 'Contact Information') {
+          display = raw ? escapeHtml(formatPhone(raw)) : '<span class="muted">&mdash;</span>';
         } else if (field.key === 'Website') {
           display = websiteLink(raw) || '<span class="muted">&mdash;</span>';
         } else {
@@ -2120,76 +2070,6 @@
         return;
       }
       renderDupList();
-    }
-
-    /* ============ Admin Settings ============ */
-
-    let adminEmails = [];
-
-    function openAdminPanel() {
-      const modal = document.getElementById('adminModal');
-      modal.style.display = 'block';
-      requestAnimationFrame(() => modal.classList.add('open'));
-      document.getElementById('adminEmailInput').value = '';
-      document.getElementById('adminEmailList').innerHTML = '<div class="admin-empty">Loading…</div>';
-      google.script.run
-        .withSuccessHandler(emails => {
-          adminEmails = Array.isArray(emails) ? emails.slice() : [];
-          renderAdminList(adminEmails);
-        })
-        .withFailureHandler(err => {
-          showToast((err && err.message) ? err.message : 'Failed to load admin emails', 'error');
-          renderAdminList(adminEmails);
-        })
-        .getAdminEmails();
-    }
-
-    function closeAdminPanel() {
-      const modal = document.getElementById('adminModal');
-      modal.classList.remove('open');
-      setTimeout(() => { modal.style.display = 'none'; }, 200);
-    }
-
-    function renderAdminList(emails) {
-      const list = document.getElementById('adminEmailList');
-      if (!emails || !emails.length) {
-        list.innerHTML = '<div class="admin-empty">No admins configured yet</div>';
-        return;
-      }
-      list.innerHTML = emails.map(email => {
-        const safe = escapeHtml(email);
-        const arg = safe.replace(/'/g, "\\'");
-        return `<div class="admin-pill"><span>${safe}</span><button type="button" title="Remove" onclick="removeAdminEmail('${arg}')">&times;</button></div>`;
-      }).join('');
-    }
-
-    function addAdminEmail() {
-      const input = document.getElementById('adminEmailInput');
-      const email = String(input.value || '').trim();
-      if (!isValidEmail(email)) { showToast('Enter a valid email address', 'error'); return; }
-      if (adminEmails.some(e => e.toLowerCase() === email.toLowerCase())) {
-        showToast('That email is already in the list', 'error');
-        input.value = '';
-        return;
-      }
-      adminEmails.push(email);
-      renderAdminList(adminEmails);
-      input.value = '';
-      input.focus();
-    }
-
-    function isValidEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
-
-    function removeAdminEmail(email) {
-      adminEmails = adminEmails.filter(e => e !== email);
-      renderAdminList(adminEmails);
-    }
-
-    function saveAdminEmails() {
-      google.script.run
-        .withSuccessHandler(() => { closeAdminPanel(); showToast('Admin emails saved', 'success'); })
-        .withFailureHandler(err => { showToast((err && err.message) ? err.message : 'Failed to save admin emails', 'error'); })
-        .setAdminEmails(adminEmails);
     }
 
     /* ============ Deleted History ============ */
