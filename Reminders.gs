@@ -1,6 +1,6 @@
 /**
  * Reminders.gs
- * Daily follow-up reminder emails + admin access control for the "Referral Tracker".
+ * Weekly outreach digest emailed to a hard-coded admin list every Monday at 7am.
  * Self-contained: reads the sheet directly, no imports from other .gs files,
  * no external libraries. Email HTML uses inline styles + table layout only.
  */
@@ -8,91 +8,17 @@
 const REMINDERS_SHEET_NAME = 'Referral Tracker';
 
 // ===========================================================================
-// ADMIN ACCESS CONTROL
-// Only these emails can see the Admin/History tools and run admin-only functions.
-// EDIT THIS LIST to grant or revoke admin rights. Case-insensitive.
-// (This is separate from ADMIN_EMAILS, which is just who RECEIVES reminder emails.)
+// ADMINS — the only people who receive the weekly digest.
+// EDIT THIS LIST to add or remove admins. This is the only place it is set.
 // ===========================================================================
-const ADMIN_ACCESS_EMAILS = [
-  'bryce.lombardo09@gmail.com',
-  'kweite@njdpt.com'
+const ADMIN_EMAILS = [
+  'bryce.lombardo09@gmail.com'
 ];
 
-// Returns { email, isAdmin } for the current user. The dashboard calls this on load
-// to decide whether to show admin tools. Enforcement also happens server-side below.
-function getUserContext() {
-  let email = '';
-  try {
-    email = Session.getActiveUser().getEmail() || '';
-  } catch (e) {
-    email = '';
-  }
-  return { email: email, isAdmin: isAdminUser_(email) };
-}
-
-// True if the given email (defaults to the active user) is in the admin whitelist.
-function isAdminUser_(email) {
-  let target = email;
-  if (!target) {
-    try {
-      target = Session.getActiveUser().getEmail() || '';
-    } catch (e) {
-      target = '';
-    }
-  }
-  target = String(target).trim().toLowerCase();
-  if (!target) {
-    return false;
-  }
-  return ADMIN_ACCESS_EMAILS.some(admin => String(admin).trim().toLowerCase() === target);
-}
-
-// Throws if the current user is not an admin. Guards admin-only backend functions.
-function requireAdmin_() {
-  if (!isAdminUser_()) {
-    throw new Error('Not authorized: admin access required.');
-  }
-}
-
-// ===========================================================================
-// REMINDER RECIPIENT LIST (who gets the daily email)
-// ===========================================================================
-
-// Reads the ADMIN_EMAILS Script Property and returns it as an array of email
-// strings. Returns [] if unset or malformed.
-function getAdminEmails() {
-  const raw = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS');
-  if (!raw) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-// Writes an array of reminder-recipient emails to the ADMIN_EMAILS Script Property.
-// Admin-only. Returns { success: true }.
-function setAdminEmails(emailsArray) {
-  requireAdmin_();
-  const clean = Array.isArray(emailsArray)
-    ? emailsArray.map(email => String(email).trim()).filter(Boolean)
-    : [];
-  PropertiesService.getScriptProperties().setProperty('ADMIN_EMAILS', JSON.stringify(clean));
-  return { success: true };
-}
-
-// ===========================================================================
-// FOLLOW-UP REMINDER EMAIL
-// ===========================================================================
-
-// Finds due follow-ups in "Referral Tracker" and emails a summary to every admin.
-// A row is "due" when Follow-Up Date is filled and today-or-earlier, and Status is
-// neither "Not Pursuing" nor "Active Relationship". Sends nothing if none are due.
-function sendFollowUpReminders() {
-  const admins = getAdminEmails();
+// Builds and sends the weekly outreach digest to every admin. Four sections:
+// Due Today, Due Tomorrow, Due Later This Week, and Completed This Week.
+function sendWeeklyDigest() {
+  const admins = ADMIN_EMAILS.map(e => String(e).trim()).filter(Boolean);
   if (!admins.length) {
     Logger.log('No admin emails configured');
     return;
@@ -105,105 +31,131 @@ function sendFollowUpReminders() {
   }
 
   const data = sheet.getDataRange().getValues();
-  if (data.length < 2) {
-    Logger.log('No follow-ups due today');
-    return;
+
+  // Build header-keyed records (empty rows skipped).
+  const records = [];
+  if (data.length >= 2) {
+    const headers = data[0];
+    const col = {};
+    headers.forEach((h, i) => { col[String(h).trim()] = i; });
+
+    for (let r = 1; r < data.length; r++) {
+      const row = data[r];
+      if (!row.some(v => String(v).trim() !== '')) continue;
+      records.push({
+        organization: row[col['Organization']],
+        category: row[col['Category']],
+        location: row[col['NJDPT Location']],
+        followUp: reminders_parseDate_(row[col['Follow-Up Date']]),
+        lastContact: row[col['Last Contact']],
+        lastContactDate: reminders_parseDate_(row[col['Last Contact']]),
+        status: String(row[col['Status']] || '').trim(),
+        connection: String(row[col['Connection Successful']] || '').trim(),
+        opportunity: row[col['Outreach Opportunity']],
+        notes: row[col['Notes']]
+      });
+    }
   }
 
-  // Map column name -> index from the header row (self-contained, no HEADERS import).
-  const headers = data[0];
-  const col = {};
-  headers.forEach((header, index) => { col[String(header).trim()] = index; });
+  // Date boundaries (all at local midnight).
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const day2 = new Date(today); day2.setDate(day2.getDate() + 2);
+  const day7 = new Date(today); day7.setDate(day7.getDate() + 7);
+  const past7 = new Date(today); past7.setDate(past7.getDate() - 7);
 
-  const today = new Date();
-  const offset = today.getTimezoneOffset() * 60000;
-  const localToday = new Date(today.getTime() - offset);
-  localToday.setHours(0, 0, 0, 0);
+  const dueToday = [], dueTomorrow = [], dueLater = [], completed = [];
 
-  const excludedStatuses = ['not pursuing', 'active relationship'];
-  const due = [];
-
-  for (let r = 1; r < data.length; r++) {
-    const row = data[r];
-
-    const followUp = reminders_parseDate_(row[col['Follow-Up Date']]);
-    if (!followUp) {
-      continue;
-    }
-    followUp.setHours(0, 0, 0, 0);
-    if (followUp > today) {
-      continue;
+  records.forEach(item => {
+    const fu = reminders_atMidnight_(item.followUp);
+    if (fu) {
+      if (fu.getTime() === today.getTime()) {
+        dueToday.push(item);
+      } else if (fu.getTime() === tomorrow.getTime()) {
+        dueTomorrow.push(item);
+      } else if (fu >= day2 && fu <= day7) {
+        dueLater.push(item);
+      }
     }
 
-    const status = String(row[col['Status']] || '').trim();
-    if (excludedStatuses.indexOf(status.toLowerCase()) !== -1) {
-      continue;
+    // Completed this week: (Active Relationship OR Connection Successful = Yes)
+    // AND Last Contact within the past 7 days.
+    const lc = reminders_atMidnight_(item.lastContactDate);
+    const isCompleted = (item.status.toLowerCase() === 'active relationship')
+      || (item.connection.toLowerCase() === 'yes');
+    if (isCompleted && lc && lc >= past7 && lc <= today) {
+      completed.push(item);
     }
+  });
 
-    due.push({
-      organization: row[col['Organization']],
-      category: row[col['Category']],
-      location: row[col['NJDPT Location']],
-      followUpDate: row[col['Follow-Up Date']],
-      status: status,
-      lastContact: row[col['Last Contact']],
-      opportunity: row[col['Outreach Opportunity']],
-      notes: row[col['Notes']]
-    });
-  }
+  const sections = [
+    { title: 'Due Today',            accent: '#b91c1c', items: dueToday,    empty: 'Nothing due today' },
+    { title: 'Due Tomorrow',         accent: '#c47d00', items: dueTomorrow, empty: 'Nothing due tomorrow' },
+    { title: 'Due Later This Week',  accent: '#1f4e78', items: dueLater,    empty: 'Nothing else due this week' },
+    { title: 'Completed This Week',  accent: '#0a7c4e', items: completed,   empty: 'No completions recorded this week' }
+  ];
 
-  if (!due.length) {
-    Logger.log('No follow-ups due today');
-    return;
-  }
-
-  const todayLabel = reminders_formatDate_(today);
-  const subject = 'NJDPT Follow-Up Reminder — ' + due.length
-    + ' due today (' + todayLabel + ')';
-  const htmlBody = reminders_buildEmailHtml_(due, todayLabel);
+  const monday = reminders_mondayOf_(today);
+  const weekLabel = Utilities.formatDate(monday, Session.getScriptTimeZone(), 'MMMM d, yyyy');
+  const subject = 'NJDPT Weekly Outreach Digest — week of ' + weekLabel;
+  const htmlBody = reminders_buildDigestHtml_(sections);
 
   admins.forEach(email => {
     MailApp.sendEmail({ to: email, subject: subject, htmlBody: htmlBody });
   });
 
-  Logger.log('Sent ' + admins.length + ' reminder email(s) to: ' + admins.join(', '));
+  Logger.log('Sent weekly digest to: ' + admins.join(', '));
 }
 
-// Creates the daily 7am trigger for sendFollowUpReminders, but only if one does not
+// Creates the Monday-7am trigger for sendWeeklyDigest, but only if one does not
 // already exist. Returns { success: true }.
-function setupDailyTrigger() {
+function setupWeeklyTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
-  const exists = triggers.some(trigger => trigger.getHandlerFunction() === 'sendFollowUpReminders');
+  const exists = triggers.some(t => t.getHandlerFunction() === 'sendWeeklyDigest');
 
   if (exists) {
     Logger.log('Trigger already set');
     return { success: true };
   }
 
-  ScriptApp.newTrigger('sendFollowUpReminders')
+  ScriptApp.newTrigger('sendWeeklyDigest')
     .timeBased()
-    .everyDays(1)
+    .onWeekDay(ScriptApp.WeekDay.MONDAY)
     .atHour(7)
     .create();
 
   return { success: true };
 }
 
-// One-time setup entry point: wires up the daily trigger. Run this manually once.
+// One-time setup entry point: wires up the weekly trigger. Run this manually once.
 function initReminders() {
-  setupDailyTrigger();
+  setupWeeklyTrigger();
   Logger.log('Reminder system initialized');
+}
+
+// One-time migration: removes any old daily sendFollowUpReminders trigger and
+// installs the new weekly digest trigger. Run this once from the editor after deploying.
+function migrateTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  let removed = 0;
+  triggers.forEach(t => {
+    if (t.getHandlerFunction() === 'sendFollowUpReminders') {
+      ScriptApp.deleteTrigger(t);
+      removed++;
+    }
+  });
+
+  setupWeeklyTrigger(); // dedup-checked; won't create a second weekly trigger
+  Logger.log('Migration complete: removed ' + removed + ' old daily trigger(s); weekly digest scheduled.');
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------
 // Private helpers (prefixed to avoid clashing with functions in other files)
 // ---------------------------------------------------------------------------
 
-// Parses a cell value into a valid Date, or returns null.
 function reminders_parseDate_(value) {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
   if (Object.prototype.toString.call(value) === '[object Date]') {
     return isNaN(value.getTime()) ? null : new Date(value.getTime());
   }
@@ -211,8 +163,25 @@ function reminders_parseDate_(value) {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// Formats a date value as M/d/yyyy in the script's timezone; passes through
-// non-date strings unchanged and returns '' for blanks.
+// Returns a copy of the date at local midnight, or null.
+function reminders_atMidnight_(date) {
+  if (!date) return null;
+  const d = new Date(date.getTime());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Returns the Monday (local midnight) of the week containing the given date.
+function reminders_mondayOf_(date) {
+  const d = new Date(date.getTime());
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();               // 0 = Sun .. 6 = Sat
+  const diff = (day === 0) ? -6 : (1 - day);
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+// Formats a date value as M/d/yyyy in the script's timezone; '' for blanks.
 function reminders_formatDate_(value) {
   const date = reminders_parseDate_(value);
   if (!date) {
@@ -221,7 +190,6 @@ function reminders_formatDate_(value) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), 'M/d/yyyy');
 }
 
-// Escapes text so it can't break the email HTML.
 function reminders_escapeHtml_(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -231,7 +199,6 @@ function reminders_escapeHtml_(value) {
     .replace(/'/g, '&#039;');
 }
 
-// Truncates a string to a max length, adding an ellipsis when cut.
 function reminders_truncate_(value, max) {
   const text = String(value == null ? '' : value).trim();
   if (text.length <= max) {
@@ -240,66 +207,83 @@ function reminders_truncate_(value, max) {
   return text.slice(0, max).trimEnd() + '…';
 }
 
-// Returns an inline-styled status badge span for the email.
+// Inline-styled status pill for the email.
 function reminders_statusBadge_(status) {
   const clean = String(status || '').trim();
+  if (!clean) return '';
   const styles = {
-    'New Opportunity':     'background:#f1f3f5;color:#4a5568;',
-    'Contacted':           'background:#dbeafe;color:#1e40af;',
-    'Follow-Up Needed':    'background:#fef3c7;color:#92400e;',
-    'Active Relationship': 'background:#d1fae5;color:#065f46;',
-    'Not Pursuing':        'background:#fee2e2;color:#991b1b;'
+    'New Opportunity':     'background-color:#f1f3f5;color:#4a5568;',
+    'Contacted':           'background-color:#dbeafe;color:#1e40af;',
+    'Follow-Up Needed':    'background-color:#fef3c7;color:#92400e;',
+    'Active Relationship': 'background-color:#d1fae5;color:#065f46;',
+    'Not Pursuing':        'background-color:#fee2e2;color:#991b1b;'
   };
-  const style = styles[clean] || 'background:#f1f3f5;color:#4a5568;';
+  const style = styles[clean] || 'background-color:#f1f3f5;color:#4a5568;';
   return '<span style="display:inline-block;padding:2px 10px;border-radius:12px;'
-    + 'font-size:12px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;' + style + '">'
-    + reminders_escapeHtml_(clean || '—') + '</span>';
+    + 'font-size:11px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;' + style + '">'
+    + reminders_escapeHtml_(clean) + '</span>';
 }
 
-// Renders one label/value row inside a card.
-function reminders_fieldRow_(label, value) {
-  const shown = (value == null || String(value).trim() === '')
-    ? '—'
-    : reminders_escapeHtml_(value);
-  return '<tr>'
-    + '<td style="padding:3px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;'
-    + 'color:#6b7a8d;width:150px;vertical-align:top;">' + reminders_escapeHtml_(label) + '</td>'
-    + '<td style="padding:3px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;'
-    + 'color:#1a2330;vertical-align:top;">' + shown + '</td>'
-    + '</tr>';
+// One org card for the digest.
+function reminders_digestCard_(item) {
+  const org = reminders_escapeHtml_(item.organization || 'Untitled');
+  const catLoc = [item.category, item.location]
+    .filter(v => String(v == null ? '' : v).trim() !== '')
+    .map(reminders_escapeHtml_)
+    .join(' · ');
+  const opp = String(item.opportunity == null ? '' : item.opportunity).trim();
+  const lastContact = reminders_formatDate_(item.lastContact);
+  const notes = reminders_truncate_(item.notes, 120);
+
+  let inner = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#163a5f;">'
+    + org + '</div>';
+  if (catLoc) {
+    inner += '<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7a8d;margin-top:2px;">'
+      + catLoc + '</div>';
+  }
+  if (opp) {
+    inner += '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-style:italic;color:#1a2330;margin-top:6px;">'
+      + reminders_escapeHtml_(opp) + '</div>';
+  }
+  if (lastContact) {
+    inner += '<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7a8d;margin-top:6px;">Last contact: '
+      + reminders_escapeHtml_(lastContact) + '</div>';
+  }
+  if (notes) {
+    inner += '<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7a8d;margin-top:4px;">'
+      + reminders_escapeHtml_(notes) + '</div>';
+  }
+  if (String(item.status || '').trim()) {
+    inner += '<div style="margin-top:8px;">' + reminders_statusBadge_(item.status) + '</div>';
+  }
+
+  return '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+    + 'style="background:#ffffff;border:1px solid #e3e9f1;border-radius:6px;margin-bottom:8px;">'
+    + '<tr><td style="padding:12px;">' + inner + '</td></tr></table>';
 }
 
-// Builds one org card as a table row.
-function reminders_buildCard_(item) {
-  let fields = '';
-  fields += reminders_fieldRow_('Category', item.category);
-  fields += reminders_fieldRow_('NJDPT Location', item.location);
-  fields += reminders_fieldRow_('Follow-Up Date', reminders_formatDate_(item.followUpDate));
-  fields += reminders_fieldRow_('Last Contact', reminders_formatDate_(item.lastContact));
-  fields += reminders_fieldRow_('Outreach Opportunity', item.opportunity);
-  fields += reminders_fieldRow_('Notes', reminders_truncate_(item.notes, 120));
+// One section (header + cards, or the muted empty message).
+function reminders_digestSection_(section) {
+  let inner = '';
+  if (section.items.length) {
+    section.items.forEach(it => { inner += reminders_digestCard_(it); });
+  } else {
+    inner = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#9aa8b8;">'
+      + reminders_escapeHtml_(section.empty) + '</div>';
+  }
 
-  const orgName = reminders_escapeHtml_(item.organization || 'Untitled');
-
-  return ''
-    + '<tr><td style="padding:8px 24px;">'
-    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
-    + 'style="border:1px solid #d0dae6;border-radius:8px;background:#ffffff;">'
-    + '<tr><td style="padding:14px 16px;">'
-    + '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;'
-    + 'color:#163a5f;">' + orgName + '</div>'
-    + '<div style="margin:6px 0 10px;">' + reminders_statusBadge_(item.status) + '</div>'
-    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">' + fields + '</table>'
-    + '</td></tr></table>'
+  return '<tr><td style="padding:18px 24px 0;">'
+    + '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;text-transform:uppercase;'
+    + 'letter-spacing:0.08em;font-weight:bold;color:#1a2330;border-left:4px solid ' + section.accent + ';'
+    + 'padding-left:10px;margin-bottom:12px;">' + reminders_escapeHtml_(section.title) + '</div>'
+    + inner
     + '</td></tr>';
 }
 
-// Assembles the full inline-styled, table-based HTML email body.
-function reminders_buildEmailHtml_(due, todayLabel) {
-  const plural = due.length === 1 ? '' : 's';
-
-  let cards = '';
-  due.forEach(item => { cards += reminders_buildCard_(item); });
+// Assembles the full inline-styled, table-based digest email.
+function reminders_buildDigestHtml_(sections) {
+  let body = '';
+  sections.forEach(s => { body += reminders_digestSection_(s); });
 
   return ''
     + '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
@@ -310,22 +294,24 @@ function reminders_buildEmailHtml_(due, todayLabel) {
     + 'style="width:600px;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;'
     + 'border:1px solid #d0dae6;">'
 
+    // Header block
     + '<tr><td style="background:#163a5f;padding:20px 24px;">'
     + '<div style="font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;'
     + 'color:#ffffff;">NJDPT Community &amp; Referral Relationship Finder</div>'
     + '<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;'
-    + 'color:#c7d3e0;margin-top:4px;">Follow-Up Reminders</div>'
+    + 'color:#c7d3e0;margin-top:4px;">Weekly Outreach Digest</div>'
     + '</td></tr>'
 
-    + '<tr><td style="padding:18px 24px 4px;font-family:Arial,Helvetica,sans-serif;'
-    + 'font-size:14px;color:#1a2330;">You have <b>' + due.length + '</b> follow-up' + plural
-    + ' due as of ' + reminders_escapeHtml_(todayLabel) + '.</td></tr>'
+    // Sections
+    + body
 
-    + cards
+    // Spacer
+    + '<tr><td style="height:20px;line-height:20px;font-size:0;">&nbsp;</td></tr>'
 
-    + '<tr><td style="padding:14px 24px 22px;font-family:Arial,Helvetica,sans-serif;'
+    // Footer
+    + '<tr><td style="background:#f0f4f8;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;'
     + 'font-size:12px;color:#6b7a8d;border-top:1px solid #eef1f5;">'
-    + 'This is an automated reminder from the NJDPT Referral Tracker.</td></tr>'
+    + 'Weekly digest from the NJDPT Referral Tracker · Sent every Monday at 7am</td></tr>'
 
     + '</table>'
     + '</td></tr></table>';
