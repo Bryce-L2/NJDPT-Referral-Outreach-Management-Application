@@ -1,5 +1,8 @@
+// ─── Configuration ───────────────────────────────────────────────────────────
+
 const SHEET_NAME = 'Referral Tracker';
 
+// Column order matters — the Sheet and all read/write logic depend on this sequence.
 const HEADERS = [
   'ID',
   'Organization',
@@ -23,6 +26,9 @@ const HEADERS = [
   'Last Updated'
 ];
 
+// ─── Entry Point ─────────────────────────────────────────────────────────────
+
+// Serves the Dashboard HTML page when the web app URL is opened.
 function doGet() {
   setupReferralTracker();
   return HtmlService.createTemplateFromFile('Dashboard')
@@ -31,6 +37,10 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+// ─── Sheet Setup ─────────────────────────────────────────────────────────────
+
+// Creates the Referral Tracker tab with headers and formatting if it doesn't exist.
+// Safe to call multiple times — checks before doing anything.
 function setupReferralTracker() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(SHEET_NAME);
@@ -51,6 +61,10 @@ function setupReferralTracker() {
   return sheet;
 }
 
+// ─── Data Access ─────────────────────────────────────────────────────────────
+
+// Reads all non-blank rows from the Sheet and returns them as an array of
+// objects keyed by HEADERS. Called by the frontend on every page load.
 function getReferralRecords() {
   const sheet = setupReferralTracker();
   const lastRow = sheet.getLastRow();
@@ -74,6 +88,8 @@ function getReferralRecords() {
     });
 }
 
+// Writes one record to the Sheet. Updates the existing row if the ID is found,
+// appends a new row otherwise. Always stamps Last Updated; preserves Date Added.
 function saveReferralRecord(record) {
   if (!record || !String(record['Organization'] || '').trim()) {
     throw new Error('Organization is required.');
@@ -95,6 +111,7 @@ function saveReferralRecord(record) {
 
     const value = record[header] ?? '';
 
+    // Parse date strings as local midnight to avoid UTC timezone shift.
     if ((header === 'Last Contact' || header === 'Follow-Up Date') && value) {
       return parseDate_(value);
     }
@@ -112,15 +129,16 @@ function saveReferralRecord(record) {
   return { success: true, id: id };
 }
 
-// Checks a NEW record for duplicates before saving. Edits (records that already have
-// an ID) skip the check entirely. Returns { status: 'saved', id } when written, or
-// { status: 'duplicate', ... } when a likely/review match is found (nothing written).
+// Runs a duplicate check before saving a new record. Edits (records with an
+// existing ID) skip the check entirely. Returns { status: 'saved' } on success
+// or { status: 'duplicate', ... } when a match is found — nothing is written
+// in the duplicate case, letting the frontend prompt the user.
 function checkAndSaveRecord(record) {
   const hasId = record && String(record['ID'] || '').trim() !== '';
 
   if (!hasId) {
     const existingRecords = getReferralRecords();
-    const outcome = checkDuplicate(record, existingRecords); // from Dedup.gs
+    const outcome = checkDuplicate(record, existingRecords); // defined in Dedup.gs
 
     if (outcome.result === 'LIKELY_DUPLICATE' || outcome.result === 'REVIEW') {
       const matched = outcome.matchedRecord || {};
@@ -138,6 +156,7 @@ function checkAndSaveRecord(record) {
   return { status: 'saved', id: saved.id };
 }
 
+// Archives the record to Deleted History, then removes the row from the Sheet.
 function deleteReferralRecord(id) {
   const sheet = setupReferralTracker();
   const row = findRowById_(sheet, id);
@@ -146,10 +165,19 @@ function deleteReferralRecord(id) {
     throw new Error('Record not found.');
   }
 
+  // Read the full row into an object before deleting so it can be archived.
+  const values = sheet.getRange(row, 1, 1, HEADERS.length).getValues()[0];
+  const record = {};
+  HEADERS.forEach((header, index) => {
+    record[header] = values[index];
+  });
+  archiveDeletedRecord(record); // defined in History.gs
+
   sheet.deleteRow(row);
   return { success: true };
 }
 
+// Returns the four summary counts shown on the dashboard cards.
 function getDashboardSummary() {
   const records = getReferralRecords();
   const today = new Date();
@@ -182,6 +210,9 @@ function getDashboardSummary() {
   };
 }
 
+// ─── Dev / Setup Utilities ───────────────────────────────────────────────────
+
+// Seeds two example rows for testing. Run once manually from the editor.
 function seedSampleData() {
   const sampleRecords = [
     {
@@ -228,6 +259,9 @@ function seedSampleData() {
   return { success: true, count: sampleRecords.length };
 }
 
+// ─── Private Helpers ─────────────────────────────────────────────────────────
+
+// Returns the 1-based row number for a given ID, or null if not found.
 function findRowById_(sheet, id) {
   if (!id || sheet.getLastRow() < 2) {
     return null;
@@ -242,6 +276,8 @@ function findRowById_(sheet, id) {
   return index === -1 ? null : index + 2;
 }
 
+// Converts a value to a Date object. Date-only strings (YYYY-MM-DD) are parsed
+// as local midnight to prevent UTC timezone from shifting them a day earlier.
 function parseDate_(value) {
   if (!value) return '';
 
@@ -249,8 +285,6 @@ function parseDate_(value) {
     return value;
   }
 
-  // Date-only strings like "2026-08-15" (from <input type="date">) must be parsed as
-  // LOCAL midnight, not UTC — otherwise a behind-UTC timezone shifts them a day earlier.
   const text = String(value).trim();
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
   if (iso) {
@@ -261,6 +295,7 @@ function parseDate_(value) {
   return isNaN(parsed.getTime()) ? '' : parsed;
 }
 
+// Applies navy header styling to row 1.
 function formatHeader_(sheet) {
   sheet
     .getRange(1, 1, 1, HEADERS.length)
@@ -270,6 +305,7 @@ function formatHeader_(sheet) {
     .setHorizontalAlignment('center');
 }
 
+// Applies consistent formatting to all data rows after a write.
 function applyRowFormatting_(sheet) {
   const lastRow = sheet.getLastRow();
 
