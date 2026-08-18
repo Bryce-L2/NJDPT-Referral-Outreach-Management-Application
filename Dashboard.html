@@ -749,8 +749,8 @@
       <span id="logo-fallback">NJDPT</span>
     </div>
     <div class="hdr-title">
-      <h1>Community &amp; Referral Relationship Finder</h1>
-      <p>Public-source outreach opportunities and relationship tracking</p>
+      <h1>NJDPT Relationship Manager</h1>
+      <p>Outreach opportunities and relationship tracking</p>
     </div>
     <div class="hdr-right"></div>
   </header>
@@ -1189,9 +1189,9 @@
           <td>${escapeHtml(record['Follow-Up Date'])}</td>
           <td>${valueBadge(record['Relationship Value'])}</td>
           <td class="actions">
-            <button class="act-btn edit" title="Edit" onclick='editRecord(${JSON.stringify(record)})'>${ICON_EDIT}</button>
-            <button class="act-btn quick" title="Quick Update" onclick='openQuickUpdate(${JSON.stringify(record)})'>${ICON_QUICK}</button>
-            <button class="act-btn del" title="Delete" onclick='removeRecord(${JSON.stringify(record["ID"])})'>${ICON_DELETE}</button>
+            <button class="act-btn edit" title="Edit" onclick="editRecord(visibleRecords[${index}])">${ICON_EDIT}</button>
+            <button class="act-btn quick" title="Quick Update" onclick="openQuickUpdate(visibleRecords[${index}])">${ICON_QUICK}</button>
+            <button class="act-btn del" title="Delete" onclick="removeRecord(visibleRecords[${index}]['ID'])">${ICON_DELETE}</button>
           </td>
         `;
         body.appendChild(row);
@@ -1883,7 +1883,11 @@
       document.getElementById('quickModalTitle').textContent = record['Organization'] || 'Quick Update';
       document.getElementById('quickStatus').value = record['Status'] || 'New Opportunity';
       document.getElementById('quickFollowUp').value = normalizeDateForInput('Follow-Up Date', record['Follow-Up Date']);
-      document.getElementById('quickLastContact').value = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const localDate = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+      document.getElementById('quickLastContact').value = localDate;
       document.getElementById('quickNotes').value = '';
       const modal = document.getElementById('quickModal');
       modal.style.display = 'block';
@@ -1924,7 +1928,7 @@
         .saveReferralRecord(updatedRecord);
     }
 
-    /* ============ Page-load duplicate scan ============ */
+    /* ============ Page load duplicate scan ============ */
 
     let dupFlags = [];
 
