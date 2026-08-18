@@ -12,7 +12,8 @@ const REMINDERS_SHEET_NAME = 'Referral Tracker';
 // EDIT THIS LIST to add or remove admins. This is the only place it is set.
 // ===========================================================================
 const ADMIN_EMAILS = [
-  'bryce.lombardo09@gmail.com'
+  'kweite@njdpt.com',
+  'lmanko@njdpt.com'
 ];
 
 // Builds and sends the weekly outreach digest to every admin. Four sections:
