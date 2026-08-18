@@ -186,13 +186,10 @@ function checkDuplicate(incomingRecord, existingRecords) {
       };
     }
 
-    // Signal 4: very similar name alone → treat as distinct (different areas can be different orgs).
+    // Signal 4: very similar name but different location — not conclusive on its own.
+    // Keep scanning; a stronger signal (phone/domain/same-location) may exist later.
     if (nameSim > NAME_STRONG_THRESHOLD) {
-      return {
-        result: 'DISTINCT',
-        matchedRecord: existing,
-        reason: 'Name similarity ' + nameSim.toFixed(2) + ' but different NJDPT Location'
-      };
+      continue;
     }
   }
 
@@ -427,6 +424,15 @@ function deleteFlaggedRecord(id) {
   if (!row) {
     throw new Error('Record not found.');
   }
+
+  // Archive a copy to Deleted History before removing the row.
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const record = {};
+  headers.forEach((header, index) => {
+    record[String(header)] = values[index];
+  });
+  archiveDeletedRecord(record);
 
   sheet.deleteRow(row);
   return { success: true };
