@@ -1,27 +1,31 @@
 const SHEET_NAME = 'Referral Tracker';
 
-const HEADERS = [
-  'ID',
-  'Organization',
-  'Category',
-  'NJDPT Location',
-  'Distance',
-  'Contact Person',
-  'Contact Information',
-  'Contact Method',
-  'Website',
-  'Outreach Opportunity',
-  'Last Contact',
-  'Follow-Up Date',
-  'Status',
-  'Relationship Value',
-  'Connection Successful',
-  'Outcome',
-  'Estimated ROI',
-  'Notes',
-  'Date Added',
-  'Last Updated'
-];
+ const HEADERS = [
+   'ID',
+   'Organization',
+   'Category',
+   'NJDPT Location',
+   'Nearest Clinic (auto)',
+   'Distance',
+   'Address',
+   'Latitude',
+   'Longitude',
+   'Contact Person',
+   'Contact Information',
+   'Contact Method',
+   'Website',
+   'Outreach Opportunity',
+   'Last Contact',
+   'Follow-Up Date',
+   'Status',
+   'Relationship Value',
+   'Connection Successful',
+   'Outcome',
+   'Estimated ROI',
+   'Notes',
+   'Date Added',
+   'Last Updated'
+ ];
 
 // One round-trip that returns everything the dashboard needs on load.
 function getInitialData() {
@@ -52,12 +56,69 @@ function setupReferralTracker() {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     formatHeader_(sheet);
     sheet.setFrozenRows(1);
-    sheet.getRange('S:T').setNumberFormat('m/d/yyyy h:mm am/pm');
-    sheet.getRange('K:L').setNumberFormat('m/d/yyyy');
+    // Column positions come from HEADERS so they survive column additions.
+    // (Date Added + Last Updated are adjacent; Last Contact + Follow-Up Date are adjacent.)
+    const dtCol = HEADERS.indexOf('Date Added') + 1;
+    const dCol = HEADERS.indexOf('Last Contact') + 1;
+    sheet.getRange(1, dtCol, sheet.getMaxRows(), 2).setNumberFormat('m/d/yyyy h:mm am/pm');
+    sheet.getRange(1, dCol, sheet.getMaxRows(), 2).setNumberFormat('m/d/yyyy');
     sheet.autoResizeColumns(1, HEADERS.length);
   }
 
   return sheet;
+}
+
+// One-time migration: adds the geocoding columns (Address, Latitude, Longitude)
+// to an existing "Referral Tracker" sheet. Inserts each missing column in its
+// correct position per HEADERS so existing row data shifts intact — no full-sheet
+// rewrite, nothing deleted or reordered. Idempotent: a second run does nothing.
+// Run once manually from the editor after deploying the HEADERS change.
+function migrateAddGeoColumns() {
+  const sheet = setupReferralTracker();
+  const newHeaders = ['Nearest Clinic (auto)', 'Address', 'Latitude', 'Longitude'];
+  const added = [];
+
+  newHeaders.forEach(header => {
+    // Re-read the header row each pass — a prior insert shifts the columns.
+    const current = sheet
+      .getRange(1, 1, 1, sheet.getLastColumn())
+      .getValues()[0]
+      .map(String);
+
+    if (current.indexOf(header) !== -1) {
+      return; // already present — idempotent, nothing to do
+    }
+
+    // Insert right after the nearest header that precedes this one in HEADERS
+    // and actually exists in the sheet today (handles them one at a time in order).
+    const headerPos = HEADERS.indexOf(header);
+    let insertAfterCol = 0;
+    for (let i = headerPos - 1; i >= 0; i--) {
+      const col = current.indexOf(HEADERS[i]);
+      if (col !== -1) {
+        insertAfterCol = col + 1; // 1-based column of the predecessor
+        break;
+      }
+    }
+    if (insertAfterCol === 0) {
+      insertAfterCol = sheet.getLastColumn(); // safe fallback: append at far right
+    }
+
+    sheet.insertColumnAfter(insertAfterCol);
+    sheet.getRange(1, insertAfterCol + 1).setValue(header);
+    added.push(header);
+  });
+
+  // Re-apply header styling so the new header cells match the navy row.
+  formatHeader_(sheet);
+
+  if (added.length) {
+    Logger.log('migrateAddGeoColumns: added column(s) → ' + added.join(', '));
+  } else {
+    Logger.log('migrateAddGeoColumns: no changes — all geo columns already present.');
+  }
+
+  return { success: true, added: added };
 }
 
 function getReferralRecords() {
@@ -97,10 +158,20 @@ function saveReferralRecord(record) {
     ? sheet.getRange(existingRow, HEADERS.indexOf('Date Added') + 1).getValue()
     : now;
 
+  // rowData maps over HEADERS, so new columns flow through automatically. Address
+  // comes from the form; Latitude, Longitude, and Nearest Clinic (auto) are written
+  // by the resolver and are NOT in the form — so on edit we PRESERVE whatever is
+  // already in the sheet for those instead of blanking them.
+  const preserveOnEdit = ['Latitude', 'Longitude', 'Nearest Clinic (auto)'];
   const rowData = HEADERS.map(header => {
     if (header === 'ID') return id;
     if (header === 'Date Added') return existingDateAdded || now;
     if (header === 'Last Updated') return now;
+
+    if (preserveOnEdit.indexOf(header) !== -1 && existingRow
+        && !String(record[header] ?? '').trim()) {
+      return sheet.getRange(existingRow, HEADERS.indexOf(header) + 1).getValue();
+    }
 
     const value = record[header] ?? '';
 
@@ -117,15 +188,25 @@ function saveReferralRecord(record) {
     sheet.appendRow(rowData);
   }
 
-  // Format only the row we just wrote (fast) instead of reformatting the whole
-  // sheet on every save. Keeps date formats, wrap, and alignment; drops the
-  // slow full-sheet autoResizeColumns scan.
   const targetRow = existingRow || sheet.getLastRow();
+
+  // Format only the row we just wrote (fast) instead of reformatting the whole sheet.
   sheet.getRange(targetRow, 1, 1, HEADERS.length)
     .setVerticalAlignment('top')
     .setWrap(true);
-  sheet.getRange(targetRow, 11, 1, 2).setNumberFormat('m/d/yyyy');
-  sheet.getRange(targetRow, 19, 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
+  sheet.getRange(targetRow, HEADERS.indexOf('Last Contact') + 1, 1, 2).setNumberFormat('m/d/yyyy');
+  sheet.getRange(targetRow, HEADERS.indexOf('Date Added') + 1, 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
+
+  // Auto-resolve this org (find office → nearest clinic → driving distance) when it
+  // has no coordinates yet. Set the id first so the resolver can locate the row we
+  // just wrote. No-ops instantly until MAPS_API_KEY is set, and skips orgs that are
+  // already resolved, so a plain edit never burns an API call. (resolveOnSave, Geo.gs)
+  record['ID'] = id;
+  try {
+    resolveOnSave(record);
+  } catch (e) {
+    Logger.log('resolveOnSave skipped: ' + e);
+  }
 
   return { success: true, id: id };
 }
@@ -305,7 +386,7 @@ function applyRowFormatting_(sheet) {
     .setVerticalAlignment('top')
     .setWrap(true);
 
-  sheet.getRange(2, 11, lastRow - 1, 2).setNumberFormat('m/d/yyyy');
-  sheet.getRange(2, 19, lastRow - 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
+  sheet.getRange(2, HEADERS.indexOf('Last Contact') + 1, lastRow - 1, 2).setNumberFormat('m/d/yyyy');
+  sheet.getRange(2, HEADERS.indexOf('Date Added') + 1, lastRow - 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
   sheet.autoResizeColumns(1, HEADERS.length);
 }
