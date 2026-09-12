@@ -24,7 +24,7 @@ const MOCK_MODE = false;                       // true = offline fixture, no net
 
 // The four NJDPT clinics. Geocoded once on first real use, then cached.
 const NJDPT_CLINICS = [
-  { name: 'Montville', address: '2 Changebridge Rd, Building, Suite F, Montville, NJ 07045' },
+  { name: 'Montville', address: '2 Changebridge Rd Building, Suite F, Montville, NJ 07045' },
   { name: 'Paramus',   address: '28 Farview Terrace, Paramus, NJ 07652' },
   { name: 'Riverdale', address: '69 Newark Pompton Turnpike, Riverdale, NJ 07457' },
   { name: 'Wayne',     address: '450 Hamburg Tpke #2f, Wayne, NJ 07470' }
