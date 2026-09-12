@@ -65,9 +65,10 @@ function sendWeeklyDigest() {
   const day7 = new Date(today); day7.setDate(day7.getDate() + 7);
   const past7 = new Date(today); past7.setDate(past7.getDate() - 7);
 
-  const dueToday = [], dueTomorrow = [], dueLater = [], completed = [];
+  const dueToday = [], dueTomorrow = [], dueLater = [], completed = [], needsReview = [];
 
   records.forEach(item => {
+    if (item.status.toLowerCase() === 'needs review') needsReview.push(item);
     const fu = reminders_atMidnight_(item.followUp);
     if (fu) {
       if (fu.getTime() === today.getTime()) {
@@ -93,6 +94,7 @@ function sendWeeklyDigest() {
     { title: 'Due Today',            accent: '#b91c1c', items: dueToday,    empty: 'Nothing due today' },
     { title: 'Due Tomorrow',         accent: '#c47d00', items: dueTomorrow, empty: 'Nothing due tomorrow' },
     { title: 'Due Later This Week',  accent: '#1f4e78', items: dueLater,    empty: 'Nothing else due this week' },
+    { title: 'New — Needs Review',   accent: '#6b21a8', items: needsReview, empty: 'No new organizations to review' },
     { title: 'Completed This Week',  accent: '#0a7c4e', items: completed,   empty: 'No completions recorded this week' }
   ];
 
