@@ -535,15 +535,15 @@
     .search-box:focus-within .search-icon { color: #163a5f; }
 
     @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    tbody tr { animation: rowIn 0.3s ease both; }
-    tbody tr:nth-child(1) { animation-delay: 0.02s; }
-    tbody tr:nth-child(2) { animation-delay: 0.05s; }
-    tbody tr:nth-child(3) { animation-delay: 0.08s; }
-    tbody tr:nth-child(4) { animation-delay: 0.11s; }
-    tbody tr:nth-child(5) { animation-delay: 0.14s; }
-    tbody tr:nth-child(6) { animation-delay: 0.17s; }
-    tbody tr:nth-child(7) { animation-delay: 0.20s; }
-    tbody tr:nth-child(8) { animation-delay: 0.23s; }
+    #recordsBody.rows-enter tr { animation: rowIn 0.3s ease both; }
+    #recordsBody.rows-enter tr:nth-child(1) { animation-delay: 0.00s; }
+    #recordsBody.rows-enter tr:nth-child(2) { animation-delay: 0.03s; }
+    #recordsBody.rows-enter tr:nth-child(3) { animation-delay: 0.06s; }
+    #recordsBody.rows-enter tr:nth-child(4) { animation-delay: 0.09s; }
+    #recordsBody.rows-enter tr:nth-child(5) { animation-delay: 0.12s; }
+    #recordsBody.rows-enter tr:nth-child(6) { animation-delay: 0.15s; }
+    #recordsBody.rows-enter tr:nth-child(7) { animation-delay: 0.18s; }
+    #recordsBody.rows-enter tr:nth-child(8) { animation-delay: 0.21s; }
 
     tbody tr td:first-child { box-shadow: inset 3px 0 0 transparent; transition: box-shadow 0.16s ease; }
     tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 #1f4e78; }
@@ -957,6 +957,10 @@
               <input id="Distance" name="Distance" placeholder="e.g., 2.1 mi">
             </label>
 
+            <label>Address
+              <input id="Address" name="Address" placeholder="Street address, City, NJ ZIP">
+            </label>
+
             <label>Contact Person
               <input id="Contact Person" name="Contact Person">
             </label>
@@ -1156,6 +1160,7 @@
   <script>
     let records = [];
     let visibleRecords = [];
+    let animateRows = false;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('search').addEventListener('input', renderTable);
@@ -1216,18 +1221,32 @@
       const status = document.getElementById('statusFilter').value;
 
       const filtered = records.filter(record => {
-        const searchable = Object.values(record).join(' ').toLowerCase();
+        const name = String(record['Organization'] || '').toLowerCase();
 
-        return (!search || searchable.includes(search))
+        return (!search || name.includes(search))
           && (!location || record['NJDPT Location'] === location)
           && (!category || record['Category'] === category)
           && (!status || record['Status'] === status);
       });
 
+      // Always show organizations A→Z by name.
+      filtered.sort((a, b) =>
+        String(a['Organization'] || '').localeCompare(
+          String(b['Organization'] || ''), undefined, { sensitivity: 'base' }
+        )
+      );
+
       visibleRecords = filtered;
 
       const body = document.getElementById('recordsBody');
       body.innerHTML = '';
+
+      if (animateRows) {
+        body.classList.add('rows-enter');
+        animateRows = false;
+      } else {
+        body.classList.remove('rows-enter');
+      }
 
       if (!filtered.length) {
         body.innerHTML = `
@@ -1595,6 +1614,7 @@
       { key: 'Category', label: 'Category' },
       { key: 'NJDPT Location', label: 'NJDPT Location' },
       { key: 'Distance', label: 'Distance' },
+      { key: 'Address', label: 'Address' },
       { key: 'Contact Person', label: 'Contact Person' },
       { key: 'Contact Information', label: 'Contact Information' },
       { key: 'Contact Method', label: 'Contact Method' },
