@@ -157,23 +157,24 @@ function checkDuplicate(incomingRecord, existingRecords) {
       ? String(existing[COL_LOCATION]).trim().toLowerCase()
       : '';
 
-    // Signal 1: phone match — both are full 10-digit numbers and equal.
+    // Signal 1: phone match both are full 10 digit numbers and equal.
     if (inPhone.length === 10 && exPhone.length === 10 && inPhone === exPhone) {
       return {
         result: 'LIKELY_DUPLICATE',
         matchedRecord: existing,
-        reason: 'Phone match (' + inPhone + ')'
+        reason: 'Same phone number'
       };
     }
 
     const nameSim = stringSimilarity(inName, exName);
+
 
     // Signal 2: same domain + reasonably similar name.
     if (inDomain && exDomain && inDomain === exDomain && nameSim > DOMAIN_NAME_THRESHOLD) {
       return {
         result: 'LIKELY_DUPLICATE',
         matchedRecord: existing,
-        reason: 'Domain match (' + inDomain + ') with name similarity ' + nameSim.toFixed(2)
+        reason: 'Same website (' + inDomain + '), ' + Math.round(nameSim * 100) + '% name match'
       };
     }
 
@@ -182,7 +183,7 @@ function checkDuplicate(incomingRecord, existingRecords) {
       return {
         result: 'REVIEW',
         matchedRecord: existing,
-        reason: 'Name similarity ' + nameSim.toFixed(2) + ' with same NJDPT Location'
+        reason: Math.round(nameSim * 100) + '% name match, same NJDPT location'
       };
     }
 
@@ -246,6 +247,7 @@ function runDedupOnSheet() {
     for (let c = 0; c < headers.length; c++) {
       record[headers[c]] = row[c];
     }
+    record.__row = r + 1; // 1-based sheet row, so we can delete the exact record later
     records.push(record);
   }
 
@@ -349,6 +351,7 @@ function getDuplicateFlags() {
     for (let c = 0; c < headers.length; c++) {
       record[headers[c]] = row[c];
     }
+    record.__row = r + 1;
     records.push(record);
   }
 
@@ -374,12 +377,14 @@ function getDuplicateFlags() {
       continue;
     }
 
-    flags.push({
+        flags.push({
       incomingId: incomingId,
+      incomingRow: incoming.__row || null,
       incomingOrg: String(incoming[COL_ORGANIZATION] || ''),
       incomingPhone: normalizePhone(incoming[COL_CONTACT_INFO]),
       incomingDomain: normalizeDomain(incoming[COL_WEBSITE]),
       matchedId: matchedId,
+      matchedRow: matched.__row || null,
       matchedOrg: String(matched[COL_ORGANIZATION] || ''),
       matchedPhone: normalizePhone(matched[COL_CONTACT_INFO]),
       matchedDomain: normalizeDomain(matched[COL_WEBSITE]),
@@ -413,30 +418,50 @@ function dismissPair(id1, id2) {
  * Deletes a single record from "Referral Tracker" by ID.
  * Returns { success: true }.
  */
-function deleteFlaggedRecord(id) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(TRACKER_SHEET_NAME);
-  if (!sheet) {
-    throw new Error('Sheet "' + TRACKER_SHEET_NAME + '" not found.');
+/**
+ * Deletes the exact sheet row for a flagged duplicate (archiving it first), instead
+ * of the first row that happens to share the ID. Verifies the row still holds the
+ * expected ID; if the sheet shifted, falls back to an ID lookup. Returns { success: true }.
+ */
+/**
+ * Deletes a flagged duplicate by its exact sheet row number.
+ * Self-contained: archives the record to Deleted History, then removes the row.
+ * If the row number is missing/stale, it falls back to locating the row by ID.
+ */
+function deleteFlaggedByRow(rowNumber, expectedId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName(TRACKER_SHEET_NAME);
+  if (!sheet) { throw new Error('Referral Tracker sheet not found.'); }
+
+  let row = Number(rowNumber);
+
+  // Validate the row: must be within the data range and, if we have an
+  // expected ID, must actually match that ID (guards against stale rows).
+  const lastRow = sheet.getLastRow();
+  const rowIsValid =
+    Number.isInteger(row) &&
+    row >= 2 &&
+    row <= lastRow &&
+    (!expectedId ||
+      String(sheet.getRange(row, 1).getDisplayValue()) === String(expectedId));
+
+  // Fall back to locating the row by ID when the row number is unreliable.
+  if (!rowIsValid) {
+    row = findTrackerRowById_(sheet, expectedId);
+    if (!row) { throw new Error('Record not found.'); }
   }
 
-  const row = findTrackerRowById_(sheet, id);
-  if (!row) {
-    throw new Error('Record not found.');
-  }
-
-  // Archive a copy to Deleted History before removing the row.
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+  // Archive before deleting so it can be restored from History.
+  const values = sheet.getRange(row, 1, 1, HEADERS.length).getValues()[0];
   const record = {};
-  headers.forEach((header, index) => {
-    record[String(header)] = values[index];
-  });
+  HEADERS.forEach((header, index) => { record[header] = values[index]; });
   archiveDeletedRecord(record);
 
   sheet.deleteRow(row);
   return { success: true };
 }
+
+ { success: true };
 
 /**
  * Finds the 1-based sheet row for a given ID in "Referral Tracker", or null.
