@@ -11,8 +11,13 @@
   <style>
     * { box-sizing: border-box; }
 
+        html { height: 100%; }
     body {
       margin: 0;
+      height: 100vh;
+      overflow: hidden;              /* no full-page scrollbar */
+      display: flex;
+      flex-direction: column;
       font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
       background: #f0f4f8;
       color: #1a2330;
@@ -22,6 +27,7 @@
     /* ===================== Header ===================== */
     header {
       height: 72px;
+      flex: none;
       background: #163a5f;
       border-bottom: 2px solid #1f4e78;
       display: flex;
@@ -92,7 +98,14 @@
     .hdr-btn svg { width: 15px; height: 15px; }
 
     /* ===================== Layout ===================== */
-    main { padding: 22px 24px 40px; }
+        main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 24px 24px;
+      overflow: hidden;
+    }
 
     /* ===================== Summary cards ===================== */
     .summary-grid {
@@ -239,11 +252,12 @@
 
     /* ===================== Table ===================== */
     .table-wrap {
+      flex: 1;
+      min-height: 0;
       overflow: auto;
       border-radius: 8px;
       border: 1px solid #d0dae6;
       background: #ffffff;
-      max-height: calc(100vh - 320px);
     }
 
     table {
@@ -713,6 +727,23 @@
     .dup-confirm { width: 100%; background: #fef2f2; border: 1px solid #f4c9c9; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #7f1d1d; font-weight: 600; }
     .dup-confirm-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
+        /* --- Dedup modal refinements --- */
+    .dup-card { padding: 16px; border-radius: 10px; }
+    .dup-reason-top { margin-bottom: 12px; }
+    .dup-reason-top .badge { white-space: normal; display: inline-block; line-height: 1.4; }
+    .dup-compare { gap: 12px; align-items: stretch; }
+    .dup-side { padding: 12px; background: #fafcff; border: 1px solid #eef1f5; border-radius: 8px; }
+    .dup-org { font-size: 14px; }
+    .dup-meta { margin-top: 3px; }
+    .dup-vs {
+      align-self: center; flex: none;
+      background: #f0f4f8; color: #6b7a8d; border-radius: 999px;
+      padding: 5px 10px; font-size: 10px;
+    }
+    .dup-confirm { background: #fff7ed; border-color: #f0d9a8; color: #7c3a00; }
+    .dup-confirm-q { font-weight: 600; margin-bottom: 10px; line-height: 1.4; }
+    .dup-confirm-actions .btn-danger { flex: 1 1 160px; }
+
     /* Admin CSS (unused now — harmless) */
     .admin-section { margin-bottom: 18px; }
     .admin-section:last-child { margin-bottom: 0; }
@@ -737,6 +768,28 @@
     @media (max-width: 600px) {
       .dup-compare { flex-direction: column; }
       .dup-vs { align-self: flex-start; }
+    }
+
+        .note-entry {
+      padding: 8px 10px;
+      border-left: 3px solid #1f4e78;
+      background: #f4f7fb;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .note-entry:last-child { margin-bottom: 0; }
+    .note-stamp {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7a8d;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 3px;
+    }
+    .note-text {
+      font-size: 13px;
+      color: #163a5f;
+      line-height: 1.45;
     }
   </style>
 </head>
@@ -1112,20 +1165,31 @@
       loadData();
     });
 
-    function loadData() {
+        function loadData() {
       setMessage('Loading records...');
       showSkeleton();
 
       google.script.run
         .withSuccessHandler(data => {
-          records = Array.isArray(data) ? data : [];
+          records = Array.isArray(data.records) ? data.records : [];
+          animateRows = true;
           renderTable();
-          refreshSummary();
+
+          // Summary comes from the same payload — no second trip.
+          animateCount(document.getElementById('total'), data.summary.total || 0);
+          animateCount(document.getElementById('due'), countFollowUpsThisWeek());
+          animateCount(document.getElementById('successful'), data.summary.successfulConnections || 0);
+          animateCount(document.getElementById('active'), data.summary.activeRelationships || 0);
+
           setMessage('');
-          runDuplicateScan();
+
+          // Duplicates come from the same payload — no third trip.
+          if (Array.isArray(data.duplicateFlags) && data.duplicateFlags.length) {
+            openDuplicateModal(data.duplicateFlags);
+          }
         })
         .withFailureHandler(showError)
-        .getReferralRecords();
+        .getInitialData();
     }
 
     function refreshSummary() {
@@ -1550,6 +1614,31 @@
 
     let breakdownRecords = [];
 
+    // Renders the Notes field as separated, timestamped entries so they
+    // don't clump into one paragraph in the detail view.
+    function formatNotes(raw) {
+      if (!raw) return '<span class="muted">&mdash;</span>';
+      const text = String(raw).trim();
+      if (!text) return '<span class="muted">&mdash;</span>';
+
+      // Quick-update entries are joined with a blank line; split on that.
+      const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+
+      return blocks.map(block => {
+        // Detect a leading "[timestamp] ..." prefix from Quick Update.
+        const m = block.match(/^\[([^\]]+)\]\s*([\s\S]*)$/);
+        if (m) {
+          const stamp = escapeHtml(m[1]);
+          const body = escapeHtml(m[2]).replace(/\n/g, '<br>');
+          return `<div class="note-entry"><div class="note-stamp">${stamp}</div>` +
+                 `<div class="note-text">${body}</div></div>`;
+        }
+        // A note typed straight into the form (no timestamp) — just show it.
+        const body = escapeHtml(block).replace(/\n/g, '<br>');
+        return `<div class="note-entry"><div class="note-text">${body}</div></div>`;
+      }).join('');
+    }
+
     function openDetail(record) {
       document.getElementById('detailTitle').textContent = record['Organization'] || 'Opportunity';
       document.getElementById('detailBody').innerHTML = DETAIL_FIELDS.map(field => {
@@ -1563,10 +1652,11 @@
           display = raw ? escapeHtml(formatPhone(raw)) : '<span class="muted">&mdash;</span>';
         } else if (field.key === 'Website') {
           display = websiteLink(raw) || '<span class="muted">&mdash;</span>';
+        } else if (field.key === 'Notes') {
+          display = formatNotes(raw);
         } else {
           display = raw ? escapeHtml(raw) : '<span class="muted">&mdash;</span>';
-        }
-        const fullClass = (field.key === 'Notes' || field.key === 'Outreach Opportunity') ? ' full' : '';
+        }        const fullClass = (field.key === 'Notes' || field.key === 'Outreach Opportunity') ? ' full' : '';
         return `<div class="detail-item${fullClass}"><dt>${escapeHtml(field.label)}</dt><dd>${display}</dd></div>`;
       }).join('');
 
@@ -1928,7 +2018,7 @@
         .saveReferralRecord(updatedRecord);
     }
 
-    /* ============ Page load duplicate scan ============ */
+    /* ============ Page-load duplicate scan ============ */
 
     let dupFlags = [];
 
@@ -1966,58 +2056,50 @@
         const cls = flag.result === 'LIKELY_DUPLICATE' ? 'likely' : 'review';
         return `
           <div class="dup-card ${cls}" data-index="${index}">
+            <div class="dup-reason-top"><span class="badge badge-amber">${escapeHtml(flag.reason)}</span></div>
             <div class="dup-compare">
               <div class="dup-side dup-side-a">
-                <div class="dup-tag">Entry A</div>
                 <div class="dup-org">${escapeHtml(flag.incomingOrg) || 'Untitled'}</div>
                 <div class="dup-meta">${escapeHtml(formatPhone(flag.incomingPhone)) || '&mdash;'}</div>
                 <div class="dup-meta">${escapeHtml(flag.incomingDomain) || '&mdash;'}</div>
               </div>
               <div class="dup-vs">vs</div>
               <div class="dup-side dup-side-b">
-                <div class="dup-tag">Entry B</div>
                 <div class="dup-org">${escapeHtml(flag.matchedOrg) || 'Untitled'}</div>
                 <div class="dup-meta">${escapeHtml(formatPhone(flag.matchedPhone)) || '&mdash;'}</div>
                 <div class="dup-meta">${escapeHtml(flag.matchedDomain) || '&mdash;'}</div>
               </div>
             </div>
-            <div class="dup-reason"><span class="badge badge-amber">${escapeHtml(flag.reason)}</span></div>
             <div class="dup-actions" data-role="actions">
-              <button type="button" class="btn-danger" onclick="startDeleteConfirm(${index})">Delete One</button>
-              <button type="button" class="btn-secondary" onclick="notDuplicate(${index})">Not a Duplicate</button>
+              <button type="button" class="btn-danger" onclick="startDeleteConfirm(${index})">Remove a duplicate</button>
+              <button type="button" class="btn-secondary" onclick="notDuplicate(${index})">Not a duplicate</button>
             </div>
           </div>`;
       }).join('');
     }
 
-    function startDeleteConfirm(index) {
+        function startDeleteConfirm(index) {
       const flag = dupFlags[index];
       if (!flag) return;
       const card = document.querySelector('.dup-card[data-index="' + index + '"]');
       if (!card) return;
-      const aName = escapeHtml(flag.incomingOrg) || 'Untitled';
-      const bName = escapeHtml(flag.matchedOrg) || 'Untitled';
-      const aWho = escapeHtml(dupContactText(flag.incomingPhone, flag.incomingDomain));
-      const bWho = escapeHtml(dupContactText(flag.matchedPhone, flag.matchedDomain));
+
+      const aName = escapeHtml(flag.incomingOrg) || 'this record';
+      const bName = escapeHtml(flag.matchedOrg) || 'this record';
+
       const actions = card.querySelector('[data-role="actions"]');
       actions.innerHTML = `
         <div class="dup-confirm">
-          Which record should be deleted? The other one is kept. This cannot be undone.
+          <div class="dup-confirm-q">Which one should be removed? The other is kept — removed records can be restored later from History.</div>
           <div class="dup-confirm-actions">
-            <button type="button" class="btn-danger dup-del-btn"
+            <button type="button" class="btn-danger"
               onclick="confirmDelete(${index}, 'incoming')"
               onmouseenter="highlightSide(${index}, 'a')" onmouseleave="clearHighlight(${index})"
-              onfocus="highlightSide(${index}, 'a')" onblur="clearHighlight(${index})">
-              <span class="dup-del-title">Delete Entry A (left)</span>
-              <span class="dup-del-sub">${aName} — ${aWho}</span>
-            </button>
-            <button type="button" class="btn-danger dup-del-btn"
+              onfocus="highlightSide(${index}, 'a')" onblur="clearHighlight(${index})">Remove ${aName}</button>
+            <button type="button" class="btn-danger"
               onclick="confirmDelete(${index}, 'matched')"
               onmouseenter="highlightSide(${index}, 'b')" onmouseleave="clearHighlight(${index})"
-              onfocus="highlightSide(${index}, 'b')" onblur="clearHighlight(${index})">
-              <span class="dup-del-title">Delete Entry B (right)</span>
-              <span class="dup-del-sub">${bName} — ${bWho}</span>
-            </button>
+              onfocus="highlightSide(${index}, 'b')" onblur="clearHighlight(${index})">Remove ${bName}</button>
             <button type="button" class="btn-secondary" onclick="renderDupList()">Cancel</button>
           </div>
         </div>`;
@@ -2044,14 +2126,20 @@
       card.classList.remove('hl-a', 'hl-b');
     }
 
-    function confirmDelete(index, which) {
+        function confirmDelete(index, which) {
       const flag = dupFlags[index];
       if (!flag) return;
+      const row = which === 'matched' ? flag.matchedRow : flag.incomingRow;
       const id = which === 'matched' ? flag.matchedId : flag.incomingId;
+      const name = which === 'matched' ? (flag.matchedOrg || 'record') : (flag.incomingOrg || 'record');
       google.script.run
-        .withSuccessHandler(() => { removeDupPair(index); loadData(); })
+        .withSuccessHandler(() => {
+          removeDupPair(index);
+          loadData();
+          showToast('Removed ' + name, 'success');
+        })
         .withFailureHandler(showError)
-        .deleteFlaggedRecord(id);
+        .deleteFlaggedByRow(row, id);
     }
 
     function notDuplicate(index) {
@@ -2121,7 +2209,7 @@
         const who = escapeHtml(entry['Deleted By'] || '');
         const deletedLine = 'Deleted ' + when + (who ? ' by ' + who : '');
         const sub = [meta, deletedLine].filter(Boolean).join(' — ');
-        const restored = String(entry['Status']).toLowerCase() === 'restored';
+        const restored = String(entry['History Status']).toLowerCase() === 'restored';
         const right = restored
           ? '<span class="hist-restored">Restored</span>'
           : `<button type="button" class="btn-secondary" onclick="restoreHistory(${index})">Restore</button>`;
@@ -2136,11 +2224,20 @@
       }).join('');
     }
 
-    function restoreHistory(index) {
+        function restoreHistory(index) {
       const entry = deletedHistory[index];
       if (!entry) return;
       google.script.run
-        .withSuccessHandler(() => { showToast('Record restored', 'success'); loadData(); loadHistory(); })
+        .withSuccessHandler(() => {
+          showToast('Record restored', 'success');
+          deletedHistory.splice(index, 1);   // drop it from the list
+          if (deletedHistory.length === 0) {
+            closeHistory();                   // nothing left — close the modal
+          } else {
+            renderHistory();
+          }
+          loadData();                         // refresh the main table + counts
+        })
         .withFailureHandler(err => { showToast((err && err.message) ? err.message : 'Failed to restore record', 'error'); })
         .restoreDeletedRecord(entry['History ID']);
     }
