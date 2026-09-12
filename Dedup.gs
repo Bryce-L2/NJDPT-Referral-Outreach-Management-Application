@@ -461,8 +461,6 @@ function deleteFlaggedByRow(rowNumber, expectedId) {
   return { success: true };
 }
 
- { success: true };
-
 /**
  * Finds the 1-based sheet row for a given ID in "Referral Tracker", or null.
  * Replicates the findRowById_ pattern from Code.gs (kept local, not imported).
