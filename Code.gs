@@ -1,31 +1,31 @@
 const SHEET_NAME = 'Referral Tracker';
 
- const HEADERS = [
-   'ID',
-   'Organization',
-   'Category',
-   'NJDPT Location',
-   'Nearest Clinic (auto)',
-   'Distance',
-   'Address',
-   'Latitude',
-   'Longitude',
-   'Contact Person',
-   'Contact Information',
-   'Contact Method',
-   'Website',
-   'Outreach Opportunity',
-   'Last Contact',
-   'Follow-Up Date',
-   'Status',
-   'Relationship Value',
-   'Connection Successful',
-   'Outcome',
-   'Estimated ROI',
-   'Notes',
-   'Date Added',
-   'Last Updated'
- ];
+const HEADERS = [
+  'ID',
+  'Organization',
+  'Category',
+  'NJDPT Location',
+  'Nearest Clinic (auto)',
+  'Distance',
+  'Address',
+  'Latitude',
+  'Longitude',
+  'Contact Person',
+  'Contact Information',
+  'Contact Method',
+  'Website',
+  'Outreach Opportunity',
+  'Last Contact',
+  'Follow-Up Date',
+  'Status',
+  'Relationship Value',
+  'Connection Successful',
+  'Outcome',
+  'Estimated ROI',
+  'Notes',
+  'Date Added',
+  'Last Updated'
+];
 
 // One round-trip that returns everything the dashboard needs on load.
 function getInitialData() {
@@ -68,11 +68,10 @@ function setupReferralTracker() {
   return sheet;
 }
 
-// One-time migration: adds the geocoding columns (Address, Latitude, Longitude)
-// to an existing "Referral Tracker" sheet. Inserts each missing column in its
-// correct position per HEADERS so existing row data shifts intact — no full-sheet
-// rewrite, nothing deleted or reordered. Idempotent: a second run does nothing.
-// Run once manually from the editor after deploying the HEADERS change.
+// One-time migration: adds the geo columns (Nearest Clinic (auto), Address, Latitude,
+// Longitude) to an existing sheet. Inserts each missing column in its correct position
+// per HEADERS so existing row data shifts intact — no full-sheet rewrite, nothing
+// deleted or reordered. Idempotent: a second run does nothing. Run once from the editor.
 function migrateAddGeoColumns() {
   const sheet = setupReferralTracker();
   const newHeaders = ['Nearest Clinic (auto)', 'Address', 'Latitude', 'Longitude'];
@@ -157,10 +156,14 @@ function saveReferralRecord(record) {
   const existingDateAdded = existingRow
     ? sheet.getRange(existingRow, HEADERS.indexOf('Date Added') + 1).getValue()
     : now;
+  // Remember the address already on file so we can tell if it changed below.
+  const existingAddress = existingRow
+    ? sheet.getRange(existingRow, HEADERS.indexOf('Address') + 1).getDisplayValue()
+    : '';
 
-  // rowData maps over HEADERS, so new columns flow through automatically. Address
-  // comes from the form; Latitude, Longitude, and Nearest Clinic (auto) are written
-  // by the resolver and are NOT in the form — so on edit we PRESERVE whatever is
+  // rowData maps over HEADERS, so new columns flow through automatically. Address comes
+  // from the form. Latitude, Longitude, and Nearest Clinic (auto) aren't in the form —
+  // they're written by the geocoder/resolver — so on edit we PRESERVE whatever is
   // already in the sheet for those instead of blanking them.
   const preserveOnEdit = ['Latitude', 'Longitude', 'Nearest Clinic (auto)'];
   const rowData = HEADERS.map(header => {
@@ -197,10 +200,10 @@ function saveReferralRecord(record) {
   sheet.getRange(targetRow, HEADERS.indexOf('Last Contact') + 1, 1, 2).setNumberFormat('m/d/yyyy');
   sheet.getRange(targetRow, HEADERS.indexOf('Date Added') + 1, 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
 
-  // Auto-resolve this org (find office → nearest clinic → driving distance) when it
-  // has no coordinates yet. Set the id first so the resolver can locate the row we
-  // just wrote. No-ops instantly until MAPS_API_KEY is set, and skips orgs that are
-  // already resolved, so a plain edit never burns an API call. (resolveOnSave, Geo.gs)
+  // Auto-resolve this org (find office → nearest clinic → driving distance) when it has
+  // no coordinates yet. Set the id first so the resolver can locate the row we just
+  // wrote. No-ops instantly until MAPS_API_KEY is set, and skips orgs that are already
+  // resolved, so a plain edit never burns an API call. (resolveOnSave, Geo.gs)
   record['ID'] = id;
   try {
     resolveOnSave(record);
@@ -211,8 +214,8 @@ function saveReferralRecord(record) {
   return { success: true, id: id };
 }
 
-// Checks a NEW record for duplicates before saving. Edits (records that already have
-// an ID) skip the check entirely. Returns { status: 'saved', id } when written, or
+// Checks a NEW record for duplicates before saving. Edits (records that already have an
+// ID) skip the check entirely. Returns { status: 'saved', id } when written, or
 // { status: 'duplicate', ... } when a likely/review match is found (nothing written).
 function checkAndSaveRecord(record) {
   const hasId = record && String(record['ID'] || '').trim() !== '';
@@ -377,6 +380,8 @@ function formatHeader_(sheet) {
     .setHorizontalAlignment('center');
 }
 
+// Not called by the save path anymore (saves format per-row). Kept for manual use;
+// columns are HEADERS-derived so it stays correct if columns move.
 function applyRowFormatting_(sheet) {
   const lastRow = sheet.getLastRow();
 
