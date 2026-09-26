@@ -13,8 +13,7 @@ const REMINDERS_SHEET_NAME = 'Referral Tracker';
 // ===========================================================================
 const ADMIN_EMAILS = [
   'kweite@njdpt.com',
-  'lmanko@njdpt.com'
-];
+  'lmanko@njdpt.com'];
 
 // Builds and sends the weekly outreach digest to every admin. Four sections:
 // Due Today, Due Tomorrow, Due Later This Week, and Completed This Week.
