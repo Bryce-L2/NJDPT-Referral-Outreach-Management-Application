@@ -1,37 +1,34 @@
 /**
  * Geo.gs
- * Places + Geocoding + Routes layer for the Referral Tracker. Given an org name,
- * finds the org's office nearest to any of the four NJDPT clinics, pairs it to that
- * clinic, and writes back Address / Lat / Lng / real driving Distance / Nearest
- * Clinic (auto) — autofilling phone + website only when empty.
+ * Places + Geocoding + Routes layer. Given an org name, finds the org's office
+ * nearest to any of the four NJDPT clinics, pairs it to that clinic, and writes
+ * back Address / Lat / Lng / driving Distance / Nearest Clinic (auto) — autofilling
+ * phone + website only when blank.
  *
- * Self-contained except for documented reuse from other files:
- *   - HEADERS, findRowById_, setupReferralTracker  (Code.gs)
- *   - normalizeName                                (Dedup.gs)
+ * APIs: Geocoding, Places API (NEW, places.googleapis.com/v1), Routes.
+ * Cost tiers: Text Search → Pro (5,000/mo); Place Details w/ contact → Enterprise
+ * (1,000/mo, called ≤1×/org and only when contact is missing); Routes pinned to
+ * Essentials (10,000/mo) via TRAFFIC_UNAWARE.
  *
- * PRE-ACTIVATION STATE (no key yet): every public function returns a clean
- * { configured: false, message: 'MAPS_API_KEY not set' } and makes ZERO network
- * calls. Nothing throws. To activate: set Script Property MAPS_API_KEY, then run
- * backfillUnresolvedOrgs(). All Places calls use the REGULAR Places API (not New).
+ * Reuse: HEADERS, findRowById_, setupReferralTracker (Code.gs); normalizeName (Dedup.gs).
+ * Dormant until Script Property MAPS_API_KEY is set — then every entry point runs.
  */
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const MAPS_KEY_PROP = 'MAPS_API_KEY';          // Script Property holding the key
-const CLINIC_COORDS_PROP = 'CLINIC_COORDS_CACHE'; // cached clinic lat/lng (JSON)
-const SEARCH_RADIUS_MILES = 10;                // Places bias radius around each clinic
-const MOCK_MODE = false;                       // true = offline fixture, no network
+const MAPS_KEY_PROP = 'MAPS_API_KEY';
+const CLINIC_COORDS_PROP = 'CLINIC_COORDS_CACHE';
+const SEARCH_RADIUS_MILES = 10;
+const MOCK_MODE = false; // true = offline fixture, no network (for tests only)
 
-// The four NJDPT clinics. Geocoded once on first real use, then cached.
 const NJDPT_CLINICS = [
-  { name: 'Montville', address: '2 Changebridge Rd Building, Suite F, Montville, NJ 07045' },
+  { name: 'Montville', address: '2 Changebridge Rd, Building, Suite F, Montville, NJ 07045' },
   { name: 'Paramus',   address: '28 Farview Terrace, Paramus, NJ 07652' },
   { name: 'Riverdale', address: '69 Newark Pompton Turnpike, Riverdale, NJ 07457' },
   { name: 'Wayne',     address: '450 Hamburg Tpke #2f, Wayne, NJ 07470' }
 ];
 
-// Approximate clinic coordinates used ONLY in MOCK_MODE (real mode geocodes the
-// addresses above). Close enough to validate the nearest-pair math offline.
+// Approximate coords used ONLY in MOCK_MODE (real mode geocodes + caches).
 const MOCK_CLINIC_COORDS = {
   Montville: { lat: 40.8879, lng: -74.3510 },
   Paramus:   { lat: 40.9260, lng: -74.0752 },
@@ -41,21 +38,18 @@ const MOCK_CLINIC_COORDS = {
 
 // ─── Key handling ────────────────────────────────────────────────────────────
 
-// The Maps Platform key, or null if the Script Property isn't set yet.
 function getMapsKey_() {
   const k = PropertiesService.getScriptProperties().getProperty(MAPS_KEY_PROP);
   return (k && String(k).trim()) ? String(k).trim() : null;
 }
 
-// Returns a "not configured" object when there's no key (and we're not mocking),
-// or null when it's safe to proceed. Every public function calls this first.
 function requireConfig_() {
   if (MOCK_MODE) return null;
   if (!getMapsKey_()) return { configured: false, message: 'MAPS_API_KEY not set' };
   return null;
 }
 
-// ─── Monthly per-API call counter ────────────────────────────────────────────
+// ─── Monthly per-SKU call counter ────────────────────────────────────────────
 
 function monthKey_() {
   const d = new Date();
@@ -63,7 +57,6 @@ function monthKey_() {
   return d.getFullYear() + '-' + m;
 }
 
-// Increments the per-API count for the current month. Called inside every request.
 // Never throws — a counting hiccup must not break a real API call.
 function bumpApiCounter_(api) {
   try {
@@ -74,16 +67,25 @@ function bumpApiCounter_(api) {
   } catch (e) { /* ignore */ }
 }
 
-// Usage for the current month, for later display on the dashboard. Local-only read
-// (no network), so it's safe to call even before the key is configured.
+// Usage for the current month. Places is split by billing SKU; `places` stays as
+// a combined total for backward compatibility.
 function getApiUsageThisMonth() {
   const props = PropertiesService.getScriptProperties();
   const month = monthKey_();
   const read = api => parseInt(props.getProperty('apiCalls:' + month + ':' + api) || '0', 10);
-  return { geocoding: read('geocoding'), places: read('places'), routes: read('routes'), month: month };
+  const placesPro = read('places_pro');               // Text Search — Pro SKU (5,000/mo)
+  const placesEnterprise = read('places_enterprise'); // Place Details w/ contact — Enterprise (1,000/mo)
+  return {
+    geocoding: read('geocoding'),
+    places: placesPro + placesEnterprise,             // backward-compatible total
+    places_pro: placesPro,
+    places_enterprise: placesEnterprise,
+    routes: read('routes'),
+    month: month
+  };
 }
 
-// ─── Low-level API calls (regular Geocoding / Places, Routes) ─────────────────
+// ─── Low-level API calls ─────────────────────────────────────────────────────
 
 // Geocoding API (GET). Returns { lat, lng, formattedAddress } or null.
 function geocode_(address) {
@@ -110,23 +112,44 @@ function geocode_(address) {
   return null;
 }
 
-// REGULAR Places Text Search (GET). Biased around a point. Returns raw results[].
+// Places API (New) Text Search (POST) — Pro SKU (Pro-tier fields only). Returns a
+// NORMALIZED array of { placeId, name, address, lat, lng }, or [] on none / error.
 function placesTextSearch_(query, biasLat, biasLng, radiusMeters) {
   const key = getMapsKey_();
   if (!key || MOCK_MODE) return [];
 
-  const url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-    + '?query=' + encodeURIComponent(query)
-    + '&location=' + encodeURIComponent(biasLat + ',' + biasLng)
-    + '&radius=' + encodeURIComponent(radiusMeters)
-    + '&key=' + encodeURIComponent(key);
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location'
+    },
+    payload: JSON.stringify({
+      textQuery: query,
+      locationBias: {
+        circle: { center: { latitude: biasLat, longitude: biasLng }, radius: radiusMeters }
+      }
+    }),
+    muteHttpExceptions: true
+  };
 
-  bumpApiCounter_('places');
+  bumpApiCounter_('places_pro');
   try {
-    const data = JSON.parse(UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText());
-    if (data.status === 'OK' && Array.isArray(data.results)) return data.results;
-    if (data.status !== 'ZERO_RESULTS') {
-      Logger.log('placesTextSearch_: ' + data.status + (data.error_message ? ' — ' + data.error_message : ''));
+    const resp = UrlFetchApp.fetch('https://places.googleapis.com/v1/places:searchText', options);
+    const data = JSON.parse(resp.getContentText() || '{}');
+    if (resp.getResponseCode() === 200 && Array.isArray(data.places)) {
+      return data.places.map(p => ({
+        placeId: p.id || '',
+        name: (p.displayName && p.displayName.text) ? p.displayName.text : '',
+        address: p.formattedAddress || '',
+        lat: p.location ? p.location.latitude : null,
+        lng: p.location ? p.location.longitude : null
+      }));
+    }
+    if (data.error) {
+      Logger.log('placesTextSearch_: ' + (data.error.status || resp.getResponseCode())
+        + (data.error.message ? ' — ' + data.error.message : ''));
     }
   } catch (e) {
     Logger.log('placesTextSearch_ failed: ' + e);
@@ -134,24 +157,33 @@ function placesTextSearch_(query, biasLat, biasLng, radiusMeters) {
   return [];
 }
 
-// REGULAR Places Details (GET) — phone + website for the winning office only.
+// Places API (New) Place Details (GET .../v1/places/{id}) — Enterprise SKU (contact
+// fields). Returns { phone, website } (empty strings if absent), or {} on error.
+// Field mask on a single-resource GET has NO "places." prefix.
 function placeDetails_(placeId) {
   const key = getMapsKey_();
   if (!key || MOCK_MODE || !placeId) return {};
 
-  const url = 'https://maps.googleapis.com/maps/api/place/details/json'
-    + '?place_id=' + encodeURIComponent(placeId)
-    + '&fields=' + encodeURIComponent('formatted_phone_number,international_phone_number,website')
-    + '&key=' + encodeURIComponent(key);
+  const options = {
+    method: 'get',
+    headers: {
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'id,nationalPhoneNumber,websiteUri'
+    },
+    muteHttpExceptions: true
+  };
 
-  bumpApiCounter_('places');
+  bumpApiCounter_('places_enterprise');
   try {
-    const data = JSON.parse(UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText());
-    if (data.status === 'OK' && data.result) {
-      return {
-        phone: data.result.formatted_phone_number || data.result.international_phone_number || '',
-        website: data.result.website || ''
-      };
+    const resp = UrlFetchApp.fetch(
+      'https://places.googleapis.com/v1/places/' + encodeURIComponent(placeId), options);
+    const data = JSON.parse(resp.getContentText() || '{}');
+    if (resp.getResponseCode() === 200) {
+      return { phone: data.nationalPhoneNumber || '', website: data.websiteUri || '' };
+    }
+    if (data.error) {
+      Logger.log('placeDetails_: ' + (data.error.status || resp.getResponseCode())
+        + (data.error.message ? ' — ' + data.error.message : ''));
     }
   } catch (e) {
     Logger.log('placeDetails_ failed: ' + e);
@@ -159,7 +191,8 @@ function placeDetails_(placeId) {
   return {};
 }
 
-// Routes API (POST). Real driving miles for one origin→destination pair, or null.
+// Routes API (POST) — pinned to Essentials SKU (TRAFFIC_UNAWARE, distance only).
+// Real driving miles for one origin→destination pair, or null.
 function routeDriveMiles_(origin, dest) {
   const key = getMapsKey_();
   if (!key || MOCK_MODE) return null;
@@ -169,12 +202,13 @@ function routeDriveMiles_(origin, dest) {
     contentType: 'application/json',
     headers: {
       'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration'
+      'X-Goog-FieldMask': 'routes.distanceMeters'
     },
     payload: JSON.stringify({
       origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
       destination: { location: { latLng: { latitude: dest.lat, longitude: dest.lng } } },
-      travelMode: 'DRIVE'
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_UNAWARE'
     }),
     muteHttpExceptions: true
   };
@@ -195,7 +229,6 @@ function routeDriveMiles_(origin, dest) {
 
 // ─── Geometry + name matching ────────────────────────────────────────────────
 
-// Straight-line distance in miles between two lat/lng points.
 function haversineMiles_(lat1, lng1, lat2, lng2) {
   const R = 3958.7613; // Earth radius, miles
   const toRad = d => d * Math.PI / 180;
@@ -206,7 +239,6 @@ function haversineMiles_(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-// Whether two org names refer to the same org, using normalizeName from Dedup.gs.
 function strongNameMatch_(a, b) {
   const na = normalizeName(a); // Dedup.gs
   const nb = normalizeName(b); // Dedup.gs
@@ -215,14 +247,11 @@ function strongNameMatch_(a, b) {
   if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
   const ta = na.split(' ').filter(Boolean);
   const tb = nb.split(' ').filter(Boolean);
-  return !!(ta.length && tb.length && ta[0] === tb[0]); // shared leading (brand) token
+  return !!(ta.length && tb.length && ta[0] === tb[0]);
 }
 
 // ─── Clinic coordinates (lazily geocoded + cached) ───────────────────────────
 
-// Returns [{ name, lat, lng }] for the four clinics. Geocodes once on first real
-// use and caches in a Script Property so it never re-geocodes. MOCK_MODE uses the
-// hardcoded mock coords.
 function getClinicCoords_() {
   if (MOCK_MODE) {
     return NJDPT_CLINICS.map(c => ({
@@ -241,7 +270,6 @@ function getClinicCoords_() {
     return { name: c.name, lat: g ? g.lat : null, lng: g ? g.lng : null };
   });
 
-  // Only cache when all four resolved, so a transient failure can't poison it.
   if (coords.every(c => c.lat != null && c.lng != null)) {
     props.setProperty(CLINIC_COORDS_PROP, JSON.stringify(coords));
   }
@@ -250,12 +278,15 @@ function getClinicCoords_() {
 
 // ─── Core resolver ───────────────────────────────────────────────────────────
 
-// Finds the org's office nearest to any clinic, pairs it to that clinic, and
-// returns the winning office + clinic + real driving miles. One Routes call per
-// org regardless of how many offices it has.
-function resolveOrg_(orgName, hintTown) {
+// Finds the org's office nearest to any clinic and returns it + clinic + driving
+// miles. `needContact` (default true): when false, skips the Enterprise Place
+// Details call because the row already has phone + website.
+function resolveOrg_(orgName, hintTown, needContact) {
   const notCfg = requireConfig_();
   if (notCfg) return notCfg;
+
+  // Default: fetch contact details unless the caller says the row already has them.
+  if (needContact === undefined) needContact = true;
 
   const name = String(orgName || '').trim();
   if (!name) return { configured: true, resolved: false, reason: 'No organization name.' };
@@ -263,7 +294,7 @@ function resolveOrg_(orgName, hintTown) {
   const clinics = getClinicCoords_().filter(c => c.lat != null && c.lng != null);
   if (!clinics.length) return { configured: true, resolved: false, reason: 'Clinic coordinates unavailable.' };
 
-  // 1 + 2: gather candidate offices near each clinic, dedupe by place_id, keep only
+  // 1 + 2: gather candidate offices near each clinic, dedupe by place id, keep only
   // those whose normalized name strongly matches the intended org.
   let offices;
   if (MOCK_MODE) {
@@ -274,15 +305,13 @@ function resolveOrg_(orgName, hintTown) {
     const byPlaceId = {};
     clinics.forEach(c => {
       placesTextSearch_(query, c.lat, c.lng, radiusMeters).forEach(r => {
-        if (r && r.place_id && !byPlaceId[r.place_id]) {
-          byPlaceId[r.place_id] = {
-            placeId: r.place_id,
+        if (r && r.placeId && !byPlaceId[r.placeId]) {
+          byPlaceId[r.placeId] = {
+            placeId: r.placeId,
             name: r.name || '',
-            address: r.formatted_address || '',
-            lat: r.geometry && r.geometry.location ? r.geometry.location.lat : null,
-            lng: r.geometry && r.geometry.location ? r.geometry.location.lng : null,
-            phone: '',
-            website: ''
+            address: r.address || '',
+            lat: r.lat,
+            lng: r.lng
           };
         }
       });
@@ -296,7 +325,7 @@ function resolveOrg_(orgName, hintTown) {
     return { configured: true, resolved: false, reason: 'No matching offices found near the clinics.' };
   }
 
-  // 3: pick the nearest (office, clinic) pair by free straight-line distance.
+  // 3: nearest (office, clinic) pair by free straight-line distance.
   let best = null;
   offices.forEach(o => {
     clinics.forEach(c => {
@@ -317,10 +346,11 @@ function resolveOrg_(orgName, hintTown) {
     driveMiles = (rm == null) ? Math.round(best.straightMiles * 10) / 10 : Math.round(rm * 10) / 10;
   }
 
-  // Winning office contact details (one details call, real mode only).
+  // One Place Details (Enterprise SKU) call for phone/website — only when the row
+  // still needs them (caller passes needContact) and only in real mode.
   let phone = best.office.phone || '';
   let website = best.office.website || '';
-  if (!MOCK_MODE && best.office.placeId) {
+  if (!MOCK_MODE && needContact && best.office.placeId) {
     const details = placeDetails_(best.office.placeId);
     phone = details.phone || phone;
     website = details.website || website;
@@ -342,11 +372,40 @@ function resolveOrg_(orgName, hintTown) {
   };
 }
 
+// Resolves coords/clinic/distance from an address string alone (geocode → nearest
+// clinic → one Routes call). Returns a resolved-shaped result, or null. Phone/website
+// left empty (not sourced here).
+function resolveFromAddress_(orgName, address) {
+  const query = String(address || '').trim();
+  if (!query) return null;
+  const g = geocode_(query);
+  if (!g) return null;
+
+  const clinics = getClinicCoords_().filter(c => c.lat != null && c.lng != null);
+  if (!clinics.length) return null;
+
+  let best = null;
+  clinics.forEach(c => {
+    const miles = haversineMiles_(g.lat, g.lng, c.lat, c.lng);
+    if (!best || miles < best.straightMiles) best = { clinic: c, straightMiles: miles };
+  });
+
+  const rm = routeDriveMiles_({ lat: g.lat, lng: g.lng }, { lat: best.clinic.lat, lng: best.clinic.lng });
+  const driveMiles = (rm == null) ? Math.round(best.straightMiles * 10) / 10 : Math.round(rm * 10) / 10;
+
+  return {
+    configured: true, resolved: true,
+    office: { name: orgName, address: g.formattedAddress || query, lat: g.lat, lng: g.lng, phone: '', website: '' },
+    nearestClinic: best.clinic.name,
+    driveMiles: driveMiles
+  };
+}
+
 // ─── Write-back ──────────────────────────────────────────────────────────────
 
-// Writes a resolved result to one Referral Tracker row. Fills office identity +
-// computed clinic/distance; autofills phone/website ONLY when empty; never touches
-// Organization, Category, or the human-set NJDPT Location.
+// Writes a resolved result to one row. Fills office identity + computed clinic/
+// distance; autofills phone/website ONLY when empty; never touches Organization,
+// Category, or the human-set NJDPT Location.
 function writeResolvedToRow_(sheet, row, res) {
   const set = (header, value) => {
     const col = HEADERS.indexOf(header);
@@ -369,9 +428,8 @@ function writeResolvedToRow_(sheet, row, res) {
 
 // ─── Public entry points ─────────────────────────────────────────────────────
 
-// Manual runner: resolve every row that has no coordinates yet, and write back.
-// Resilient — one org failing never aborts the run. Never re-resolves a row that
-// already has coords (orgs and clinics don't move).
+// Resolve every row that has no coordinates yet, and write back. Resilient — one
+// org failing never aborts the run. Never re-resolves a row that already has coords.
 function backfillUnresolvedOrgs() {
   const notCfg = requireConfig_();
   if (notCfg) return notCfg;
@@ -384,6 +442,8 @@ function backfillUnresolvedOrgs() {
   const latCol = HEADERS.indexOf('Latitude');
   const lngCol = HEADERS.indexOf('Longitude');
   const locCol = HEADERS.indexOf('NJDPT Location');
+  const contactCol = HEADERS.indexOf('Contact Information');
+  const webCol = HEADERS.indexOf('Website');
 
   const rows = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getDisplayValues();
   let resolved = 0, failed = 0, skipped = 0;
@@ -398,7 +458,9 @@ function backfillUnresolvedOrgs() {
     if (hasCoords) { skipped++; return; }
 
     try {
-      const res = resolveOrg_(orgName, String(vals[locCol] || '').trim());
+      const needContact = !String(vals[contactCol] || '').trim()
+        || !String(vals[webCol] || '').trim();
+      const res = resolveOrg_(orgName, String(vals[locCol] || '').trim(), needContact);
       if (res && res.resolved) {
         writeResolvedToRow_(sheet, row, res);
         resolved++;
@@ -410,7 +472,7 @@ function backfillUnresolvedOrgs() {
       failed++;
       failures.push(orgName + ' — error: ' + e);
     }
-    Utilities.sleep(150); // gentle pacing
+    Utilities.sleep(150);
   });
 
   Logger.log('backfillUnresolvedOrgs: resolved ' + resolved + ', failed ' + failed + ', skipped ' + skipped + '.');
@@ -419,10 +481,9 @@ function backfillUnresolvedOrgs() {
 }
 
 // Save-flow hook: resolve a single record when it has an Org/Address but no coords
-// yet, so editing a note never burns an API call.
-// >>> WIRE-IN POINT (next prompt): inside saveReferralRecord, AFTER the row write +
-//     formatting, add a single line:  resolveOnSave(record);  <<<
-function resolveOnSave(record) {
+// yet. Wired into saveReferralRecord (Code.gs). When preferAddress is true (the
+// Address just changed), resolve from the typed address instead of the name lookup.
+function resolveOnSave(record, preferAddress) {
   const notCfg = requireConfig_();
   if (notCfg) return notCfg;
 
@@ -441,13 +502,30 @@ function resolveOnSave(record) {
     && String(sheet.getRange(row, lngCol).getDisplayValue()).trim() !== '';
   if (hasCoords) return { configured: true, resolved: false, reason: 'Already resolved.' };
 
-  const res = resolveOrg_(orgName, String((record && record['NJDPT Location']) || '').trim());
-  if (res && res.resolved) writeResolvedToRow_(sheet, row, res);
+  // Address just changed → trust the typed address over the name-based Places lookup.
+  if (preferAddress && address) {
+    const fromAddr = resolveFromAddress_(orgName, address);
+    if (fromAddr) { writeResolvedToRow_(sheet, row, fromAddr); return fromAddr; }
+  }
+
+  const needContact = !String((record && record['Contact Information']) || '').trim()
+    || !String((record && record['Website']) || '').trim();
+  const res = resolveOrg_(orgName, String((record && record['NJDPT Location']) || '').trim(), needContact);
+  if (res && res.resolved) {
+    writeResolvedToRow_(sheet, row, res);
+    return res;
+  }
+
+  // Fallback: no office found by name, but there's an Address — resolve from it.
+  if (address) {
+    const fromAddr = resolveFromAddress_(orgName, address);
+    if (fromAddr) { writeResolvedToRow_(sheet, row, fromAddr); return fromAddr; }
+  }
+
   return res || { configured: true, resolved: false, reason: 'Unresolved.' };
 }
 
-// Manual single-org refresh that ignores the "already has coords" cache and
-// re-queries + overwrites.
+// Manual single-org refresh that ignores the "already has coords" skip.
 function forceReresolve(id) {
   const notCfg = requireConfig_();
   if (notCfg) return notCfg;
@@ -460,15 +538,16 @@ function forceReresolve(id) {
   const orgName = String(vals[HEADERS.indexOf('Organization')] || '').trim();
   const hint = String(vals[HEADERS.indexOf('NJDPT Location')] || '').trim();
 
-  const res = resolveOrg_(orgName, hint);
+  const contactCol = HEADERS.indexOf('Contact Information');
+  const webCol = HEADERS.indexOf('Website');
+  const needContact = !String(vals[contactCol] || '').trim() || !String(vals[webCol] || '').trim();
+  const res = resolveOrg_(orgName, hint, needContact);
   if (res && res.resolved) writeResolvedToRow_(sheet, row, res);
   return res || { configured: true, resolved: false, reason: 'Unresolved.' };
 }
 
-// ─── Mock mode (verify the math today, zero API calls) ────────────────────────
+// ─── Mock mode (verify the math offline, zero API calls) ─────────────────────
 
-// Fixture: a fake multi-office org — one office next to the Wayne clinic, one far
-// off near Morristown. Nearest-pair must pick the Wayne office → 'Wayne'.
 function mockOffices_(orgName) {
   return [
     { name: orgName + ' - Wayne', address: '500 Hamburg Tpke, Wayne, NJ 07470',
@@ -478,8 +557,6 @@ function mockOffices_(orgName) {
   ];
 }
 
-// Offline assertions for the haversine nearest-pair selection. Set MOCK_MODE = true
-// at the top of this file, then run this from the editor and read the log.
 function testResolverMath() {
   const results = [];
   const assert = (label, cond) => results.push((cond ? 'PASS' : 'FAIL') + ' — ' + label);
@@ -505,10 +582,6 @@ function testResolverMath() {
   return { ran: true, results: results };
 }
 
-// One-shot self-check for the geocoding/resolver layer. Runs everything it safely
-// can with ZERO API calls and prints a summary to the log. Run it from the editor,
-// then open the Execution log (View ▸ Logs). Works with or without a key. Run it
-// once with MOCK_MODE = true to also exercise the full live resolver path offline.
 function geoSelfTest() {
   const lines = [];
   let pass = 0, fail = 0;
@@ -520,14 +593,12 @@ function geoSelfTest() {
   lines.push('────── Geo.gs self-test ──────');
   info('MOCK_MODE = ' + MOCK_MODE + '  |  API key set: ' + (getMapsKey_() ? 'yes' : 'no'));
 
-  // 1) HEADERS wiring
   ['Nearest Clinic (auto)', 'Address', 'Latitude', 'Longitude'].forEach(h => {
     check('HEADERS contains "' + h + '"', HEADERS.indexOf(h) !== -1);
   });
   check('"Nearest Clinic (auto)" sits right after "NJDPT Location"',
     HEADERS.indexOf('Nearest Clinic (auto)') === HEADERS.indexOf('NJDPT Location') + 1);
 
-  // Sheet column presence (informational — needs migrateAddGeoColumns to have run)
   try {
     const sheet = setupReferralTracker();
     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
@@ -540,13 +611,11 @@ function geoSelfTest() {
     info('Could not read the sheet header row: ' + e);
   }
 
-  // 2) Haversine sanity
   check('haversine of a point to itself is ~0', haversineMiles_(40.9, -74.2, 40.9, -74.2) < 0.001);
   const dWayne = haversineMiles_(40.9455, -74.2475, MOCK_CLINIC_COORDS.Wayne.lat, MOCK_CLINIC_COORDS.Wayne.lng);
   const dMont  = haversineMiles_(40.9455, -74.2475, MOCK_CLINIC_COORDS.Montville.lat, MOCK_CLINIC_COORDS.Montville.lng);
   check('a Wayne-area point is nearer the Wayne clinic than the Montville clinic', dWayne < dMont);
 
-  // 3) Nearest-pair selection (offline, independent of key or MOCK_MODE)
   const clinics = Object.keys(MOCK_CLINIC_COORDS).map(name => ({
     name: name, lat: MOCK_CLINIC_COORDS[name].lat, lng: MOCK_CLINIC_COORDS[name].lng
   }));
@@ -559,7 +628,6 @@ function geoSelfTest() {
   check('nearest-pair math picks the Wayne clinic', !!(best && best.clinic === 'Wayne'));
   check('nearest-pair math picks the Wayne office', !!(best && /Wayne/.test(best.office)));
 
-  // 4) "Not configured" safety — only meaningful with no key and MOCK_MODE off
   if (!getMapsKey_() && !MOCK_MODE) {
     const r = backfillUnresolvedOrgs(); // returns immediately, writes nothing
     check('backfillUnresolvedOrgs reports not-configured (no key) and writes nothing',
@@ -568,13 +636,11 @@ function geoSelfTest() {
     info('Skipped not-configured check (a key is set or MOCK_MODE is on).');
   }
 
-  // 5) Usage-counter shape
   const usage = getApiUsageThisMonth();
   check('getApiUsageThisMonth returns numeric counters + month',
     !!(usage && typeof usage.geocoding === 'number' && typeof usage.places === 'number'
        && typeof usage.routes === 'number' && usage.month));
 
-  // 6) Full live resolver — only when MOCK_MODE is on (still ZERO API calls)
   if (MOCK_MODE) {
     const res = resolveOrg_('Mock Ortho', '');
     check('resolveOrg_ resolves in MOCK_MODE', !!(res && res.resolved === true));
