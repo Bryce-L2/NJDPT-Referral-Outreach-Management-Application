@@ -200,13 +200,24 @@ function saveReferralRecord(record) {
   sheet.getRange(targetRow, HEADERS.indexOf('Last Contact') + 1, 1, 2).setNumberFormat('m/d/yyyy');
   sheet.getRange(targetRow, HEADERS.indexOf('Date Added') + 1, 1, 2).setNumberFormat('m/d/yyyy h:mm am/pm');
 
+  // On an EDIT where the Address changed, clear the geocoder-owned columns so the row
+  // reads as unresolved and resolveOnSave re-resolves against the new address.
+  const newAddress = String(record['Address'] || '').trim();
+  const addressChanged = !!(existingRow && newAddress
+      && newAddress.toLowerCase() !== String(existingAddress || '').trim().toLowerCase());
+  if (addressChanged) {
+    ['Latitude', 'Longitude', 'Distance', 'Nearest Clinic (auto)'].forEach(header => {
+      sheet.getRange(targetRow, HEADERS.indexOf(header) + 1).setValue('');
+    });
+  }
+
   // Auto-resolve this org (find office → nearest clinic → driving distance) when it has
   // no coordinates yet. Set the id first so the resolver can locate the row we just
   // wrote. No-ops instantly until MAPS_API_KEY is set, and skips orgs that are already
   // resolved, so a plain edit never burns an API call. (resolveOnSave, Geo.gs)
   record['ID'] = id;
   try {
-    resolveOnSave(record);
+      resolveOnSave(record, addressChanged);
   } catch (e) {
     Logger.log('resolveOnSave skipped: ' + e);
   }
