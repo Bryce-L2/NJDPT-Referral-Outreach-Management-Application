@@ -16,6 +16,10 @@ const MAX_NEW_PER_RUN = 25;     // stop after adding this many new orgs per run
 const RESULTS_PER_SEARCH = 5;   // take only the top N of each search's ~20 results
 const NAME_MATCH_SKIP = 0.85;   // fuzzy-name pre-filter threshold vs existing orgs
 
+// Never add NJDPT's own practices to the tracker. A candidate whose normalized
+// name contains any of these is dropped from discovery. Add variants as needed.
+const EXCLUDED_ORG_KEYWORDS = ['njdpt', 'new jersey doctors of physical therapy'];
+
 // What to look for, and the Category each result maps to. Sent to Places near
 // EACH clinic. Tune freely.
 const DISCOVERY_SEARCHES = [
@@ -79,6 +83,37 @@ function resetDiscoveredMemory() {
   return { success: true };
 }
 
+// True if this looks like one of NJDPT's own practices (never a discovery candidate).
+function isOwnClinic_(name) {
+  const n = normalizeName(name); // Dedup.gs
+  if (!n) return false;
+  return EXCLUDED_ORG_KEYWORDS.some(kw => n.indexOf(kw) !== -1);
+}
+
+// Default Relationship Value for a freshly discovered org, by category.
+function discoveryRelationshipValue_(category) {
+  const high = ['Physician Practice'];
+  const medium = ['Senior Center', 'Senior Living', 'School', 'Athletic Program'];
+  if (high.indexOf(category) !== -1) return 'High';
+  if (medium.indexOf(category) !== -1) return 'Medium';
+  return 'Potential';
+}
+
+// Default Outreach Opportunity for a freshly discovered org, by category.
+function discoveryOutreachOpportunity_(category) {
+  const map = {
+    'Physician Practice':     'Physician referral relationship',
+    'Senior Center':          'Fall prevention presentation',
+    'Senior Living':          'Fall prevention presentation',
+    'School':                 'Athletic injury prevention program',
+    'Athletic Program':       'Sports injury prevention and recovery',
+    'Gym/Fitness':            'Injury prevention and recovery partnership',
+    'Community Organization': 'Community wellness presentation',
+    'Support Group':          'Physical therapy education and support'
+  };
+  return map[category] || 'Outreach opportunity';
+}
+
 // ─── The scan ─────────────────────────────────────────────────────────────────
 
 // Searches, dedupes by place-id + fuzzy name (both free), and returns NEW candidates
@@ -106,11 +141,10 @@ function discoverNewCandidates_() {
       placesTextSearch_(s.query, clinic.lat, clinic.lng, radiusMeters)
         .slice(0, RESULTS_PER_SEARCH)
         .forEach(r => {
-          if (!r || !r.place_id || byId[r.place_id]) return;
-          byId[r.place_id] = {
-            placeId: r.place_id, name: r.name || '', address: r.formatted_address || '',
-            lat: r.geometry && r.geometry.location ? r.geometry.location.lat : null,
-            lng: r.geometry && r.geometry.location ? r.geometry.location.lng : null,
+          if (!r || !r.placeId || byId[r.placeId]) return;
+          byId[r.placeId] = {
+            placeId: r.placeId, name: r.name || '', address: r.address || '',
+            lat: r.lat, lng: r.lng,
             category: s.category
           };
         });
@@ -123,6 +157,9 @@ function discoverNewCandidates_() {
     const c = byId[pid];
     if (!c.name || c.lat == null || c.lng == null) { incomplete++; return; }
     if (alreadySurfaced[pid]) { alreadySeen++; return; }
+
+    // Never add NJDPT's own practices.
+    if (isOwnClinic_(c.name)) { alreadyHave++; return; }
 
     // Fuzzy name pre-filter (no API): skip if it closely matches an org we track.
     const norm = normalizeName(c.name);
@@ -202,7 +239,13 @@ function runDiscoveryScan() {
     const record = {
       'Organization': c.name, 'Category': c.category, 'Distance': distance,
       'Address': c.address, 'Latitude': c.lat, 'Longitude': c.lng,
-      'Nearest Clinic (auto)': c.nearest ? c.nearest.name : '', 'Status': REVIEW_STATUS,
+      'Nearest Clinic (auto)': c.nearest ? c.nearest.name : '',
+      'NJDPT Location': c.nearest ? c.nearest.name : '',
+      'Status': REVIEW_STATUS,
+      'Connection Successful': 'Pending',
+      'Outcome': 'Pending',
+      'Relationship Value': discoveryRelationshipValue_(c.category),
+      'Outreach Opportunity': discoveryOutreachOpportunity_(c.category),
       'Contact Information': phone, 'Website': website,
       'Notes': 'Auto-discovered ' + today + ' near ' + (c.nearest ? c.nearest.name : 'a') + ' clinic.'
     };
