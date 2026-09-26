@@ -13,6 +13,7 @@ const COL_ORGANIZATION = 'Organization';
 const COL_CONTACT_INFO = 'Contact Information';
 const COL_WEBSITE = 'Website';
 const COL_LOCATION = 'NJDPT Location';
+const COL_ADDRESS = 'Address';
 
 // Review Queue header row.
 const REVIEW_QUEUE_HEADERS = [
@@ -83,6 +84,18 @@ function normalizeDomain(url) {
 }
 
 /**
+ * Normalizes an address for comparison: lowercase, drop periods/commas, collapse
+ * whitespace. Keeps suite/unit info so different suites don't falsely merge.
+ */
+function normalizeAddress_(addr) {
+  return String(addr || '')
+    .toLowerCase()
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Computes Levenshtein edit distance between two strings (iterative DP).
  */
 function levenshtein(a, b) {
@@ -144,6 +157,7 @@ function checkDuplicate(incomingRecord, existingRecords) {
   const inName = normalizeName(incomingRecord[COL_ORGANIZATION]);
   const inPhone = normalizePhone(incomingRecord[COL_CONTACT_INFO]);
   const inDomain = normalizeDomain(incomingRecord[COL_WEBSITE]);
+  const inAddr = normalizeAddress_(incomingRecord[COL_ADDRESS]);
   const inLocation = incomingRecord[COL_LOCATION]
     ? String(incomingRecord[COL_LOCATION]).trim().toLowerCase()
     : '';
@@ -153,6 +167,7 @@ function checkDuplicate(incomingRecord, existingRecords) {
     const exName = normalizeName(existing[COL_ORGANIZATION]);
     const exPhone = normalizePhone(existing[COL_CONTACT_INFO]);
     const exDomain = normalizeDomain(existing[COL_WEBSITE]);
+    const exAddr = normalizeAddress_(existing[COL_ADDRESS]);
     const exLocation = existing[COL_LOCATION]
       ? String(existing[COL_LOCATION]).trim().toLowerCase()
       : '';
@@ -168,13 +183,22 @@ function checkDuplicate(incomingRecord, existingRecords) {
 
     const nameSim = stringSimilarity(inName, exName);
 
-
     // Signal 2: same domain + reasonably similar name.
     if (inDomain && exDomain && inDomain === exDomain && nameSim > DOMAIN_NAME_THRESHOLD) {
       return {
         result: 'LIKELY_DUPLICATE',
         matchedRecord: existing,
         reason: 'Same website (' + inDomain + '), ' + Math.round(nameSim * 100) + '% name match'
+      };
+    }
+
+    // Signal 2b: same street address → needs human review. Co-located practices
+    // exist, so this is a soft flag (REVIEW), not an automatic duplicate.
+    if (inAddr && exAddr && inAddr === exAddr) {
+      return {
+        result: 'REVIEW',
+        matchedRecord: existing,
+        reason: 'Same address'
       };
     }
 
@@ -188,7 +212,7 @@ function checkDuplicate(incomingRecord, existingRecords) {
     }
 
     // Signal 4: very similar name but different location — not conclusive on its own.
-    // Keep scanning; a stronger signal (phone/domain/same-location) may exist later.
+    // Keep scanning; a stronger signal (phone/domain/address/same-location) may exist later.
     if (nameSim > NAME_STRONG_THRESHOLD) {
       continue;
     }
@@ -377,7 +401,7 @@ function getDuplicateFlags() {
       continue;
     }
 
-        flags.push({
+    flags.push({
       incomingId: incomingId,
       incomingRow: incoming.__row || null,
       incomingOrg: String(incoming[COL_ORGANIZATION] || ''),
@@ -415,18 +439,10 @@ function dismissPair(id1, id2) {
 }
 
 /**
- * Deletes a single record from "Referral Tracker" by ID.
- * Returns { success: true }.
- */
-/**
- * Deletes the exact sheet row for a flagged duplicate (archiving it first), instead
- * of the first row that happens to share the ID. Verifies the row still holds the
- * expected ID; if the sheet shifted, falls back to an ID lookup. Returns { success: true }.
- */
-/**
  * Deletes a flagged duplicate by its exact sheet row number.
  * Self-contained: archives the record to Deleted History, then removes the row.
  * If the row number is missing/stale, it falls back to locating the row by ID.
+ * Returns { success: true }.
  */
 function deleteFlaggedByRow(rowNumber, expectedId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet()
